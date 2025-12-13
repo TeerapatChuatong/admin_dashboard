@@ -83,7 +83,6 @@ export default function EditAnswerModal({ answer, question, diseaseId, onClose, 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // ✅ หา score_id จาก scores จริง (กันกรณี list ยังไม่ส่งมา)
   useEffect(() => {
     (async () => {
       try {
@@ -101,7 +100,6 @@ export default function EditAnswerModal({ answer, question, diseaseId, onClose, 
   }, [diseaseId, questionId, choiceId]);
 
   async function upsertScore({ disease_id, question_id, choice_id, risk_score }) {
-    // ถ้ามี score_id → update
     if (scoreId) {
       await updateScoreApi({
         score_id: scoreId,
@@ -112,8 +110,6 @@ export default function EditAnswerModal({ answer, question, diseaseId, onClose, 
       });
       return;
     }
-
-    // ไม่มี → create
     await createScoreApi({ disease_id, question_id, choice_id, risk_score });
   }
 
@@ -136,14 +132,12 @@ export default function EditAnswerModal({ answer, question, diseaseId, onClose, 
 
     setLoading(true);
     try {
-      // ✅ update choice
       await updateAnswerApi({
         choice_id: Number(choiceId),
         question_id: Number(questionId),
         choice_label: String(label ?? "").trim(),
       });
 
-      // ✅ upsert score ลง scores
       await upsertScore({
         disease_id: Number(diseaseId),
         question_id: Number(questionId),
@@ -175,7 +169,6 @@ export default function EditAnswerModal({ answer, question, diseaseId, onClose, 
         </div>
 
         <form onSubmit={handleSubmit}>
-          {/* ตัวช่วยสำหรับ yes_no: ใส่ preset label ได้เร็ว */}
           {questionType === "yes_no" && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
               <button type="button" className="btn ghost" onClick={() => setLabel("ใช่")}>
@@ -189,6 +182,13 @@ export default function EditAnswerModal({ answer, question, diseaseId, onClose, 
               </button>
               <button type="button" className="btn ghost" onClick={() => setLabel("ไม่พบ")}>
                 ไม่พบ
+              </button>
+              {/* ✅ เพิ่ม */}
+              <button type="button" className="btn ghost" onClick={() => setLabel("เคยใช้")}>
+                เคยใช้
+              </button>
+              <button type="button" className="btn ghost" onClick={() => setLabel("ไม่เคยใช้")}>
+                ไม่เคยใช้
               </button>
             </div>
           )}

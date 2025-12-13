@@ -65,16 +65,28 @@ export default function CreateAnswerModal({ question, diseaseId, onClose, onSucc
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // โหลด choices เดิม (ใช้สำหรับ yes_no เพื่อไม่สร้างซ้ำ + toggle ใช่/ไม่ใช่ ↔ พบ/ไม่พบ)
+  // โหลด choices เดิม (ใช้สำหรับ yes_no เพื่อไม่สร้างซ้ำ + toggle)
   const [existingChoices, setExistingChoices] = useState([]);
 
   // yes_no settings
-  const [yesNoMode, setYesNoMode] = useState("yesno"); // yesno | found
+  const [yesNoMode, setYesNoMode] = useState("yesno"); // yesno | found | used
   const [yesScore, setYesScore] = useState(0);
   const [noScore, setNoScore] = useState(0);
 
   // multi/numeric rows
   const [rows, setRows] = useState([{ label: "", score: 0 }]);
+
+  const getYesLabel = () => {
+    if (yesNoMode === "found") return "พบ";
+    if (yesNoMode === "used") return "เคยใช้";
+    return "ใช่";
+  };
+
+  const getNoLabel = () => {
+    if (yesNoMode === "found") return "ไม่พบ";
+    if (yesNoMode === "used") return "ไม่เคยใช้";
+    return "ไม่ใช่";
+  };
 
   useEffect(() => {
     (async () => {
@@ -84,10 +96,17 @@ export default function CreateAnswerModal({ question, diseaseId, onClose, onSucc
         const list = Array.isArray(data) ? data : extractList(data);
         setExistingChoices(list);
 
-        // auto detect โหมด ถ้ามี "พบ/ไม่พบ" อยู่แล้ว
-        const hasFound = list.some((c) => String(c.choice_label ?? "").trim() === "พบ");
-        const hasNotFound = list.some((c) => String(c.choice_label ?? "").trim() === "ไม่พบ");
-        if (hasFound || hasNotFound) setYesNoMode("found");
+        // auto detect โหมด ถ้ามี label อยู่แล้ว
+        const hasFound =
+          list.some((c) => String(c.choice_label ?? "").trim() === "พบ") ||
+          list.some((c) => String(c.choice_label ?? "").trim() === "ไม่พบ");
+
+        const hasUsed =
+          list.some((c) => String(c.choice_label ?? "").trim() === "เคยใช้") ||
+          list.some((c) => String(c.choice_label ?? "").trim() === "ไม่เคยใช้");
+
+        if (hasUsed) setYesNoMode("used");
+        else if (hasFound) setYesNoMode("found");
       } catch {
         // ไม่ต้อง block UI
       }
@@ -107,7 +126,6 @@ export default function CreateAnswerModal({ question, diseaseId, onClose, onSucc
   }
 
   async function upsertScore({ disease_id, question_id, choice_id, risk_score }) {
-    // ✅ update ถ้ามี score แล้ว ไม่งั้น create
     const scoreMap = await fetchScoresMap({ disease_id, question_id });
     const existing = scoreMap.get(String(choice_id));
 
@@ -122,24 +140,20 @@ export default function CreateAnswerModal({ question, diseaseId, onClose, onSucc
       return;
     }
 
-    // ไม่มี → create
     await createScoreApi({ disease_id, question_id, choice_id, risk_score });
   }
 
   async function ensureChoice({ choice_label }) {
-    // หา choice เดิมก่อน
     const found = existingChoices.find(
       (c) => String(c.choice_label ?? "").trim() === String(choice_label).trim()
     );
     if (found) return found;
 
-    // ไม่เจอ → create
     const created = await createAnswerApi({
       question_id: Number(questionId),
       choice_label: String(choice_label),
     });
 
-    // createAnswerApi อาจคืนหลายรูปแบบ → เดา id ให้ได้
     const cid =
       created?.choice_id ??
       created?.id ??
@@ -155,15 +169,15 @@ export default function CreateAnswerModal({ question, diseaseId, onClose, onSucc
   }
 
   async function saveYesNo() {
-    const yesLabel = yesNoMode === "found" ? "พบ" : "ใช่";
-    const noLabel = yesNoMode === "found" ? "ไม่พบ" : "ไม่ใช่";
+    const yesLabel = getYesLabel();
+    const noLabel = getNoLabel();
 
-    // ✅ ถ้ามี choice เป็นอีกโหมดอยู่แล้ว ให้ reuse แล้วเปลี่ยน label เพื่อไม่สร้างซ้ำ
+    // ✅ reuse choice เดิม (ไม่สร้างซ้ำ) แล้วค่อย update label ให้ตรงโหมด
     const anyYes = existingChoices.find((c) =>
-      ["ใช่", "พบ"].includes(String(c.choice_label ?? "").trim())
+      ["ใช่", "พบ", "เคยใช้"].includes(String(c.choice_label ?? "").trim())
     );
     const anyNo = existingChoices.find((c) =>
-      ["ไม่ใช่", "ไม่พบ"].includes(String(c.choice_label ?? "").trim())
+      ["ไม่ใช่", "ไม่พบ", "ไม่เคยใช้"].includes(String(c.choice_label ?? "").trim())
     );
 
     let yesChoice = anyYes;
@@ -260,7 +274,6 @@ export default function CreateAnswerModal({ question, diseaseId, onClose, onSucc
       } else {
         await saveMultiOrNumeric();
       }
-
       onSuccess?.();
     } catch (err) {
       setError(err?.message || "บันทึกไม่สำเร็จ");
@@ -297,16 +310,13 @@ export default function CreateAnswerModal({ question, diseaseId, onClose, onSucc
               >
                 <option value="yesno">ใช่ / ไม่ใช่</option>
                 <option value="found">พบ / ไม่พบ</option>
+                <option value="used">เคยใช้ / ไม่เคยใช้</option>
               </select>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 10 }}>
                 <div>
                   <label>คำตอบ</label>
-                  <input
-                    value={yesNoMode === "found" ? "พบ" : "ใช่"}
-                    disabled
-                    style={{ width: "100%" }}
-                  />
+                  <input value={getYesLabel()} disabled style={{ width: "100%" }} />
                 </div>
                 <div>
                   <label>คะแนน</label>
@@ -319,11 +329,7 @@ export default function CreateAnswerModal({ question, diseaseId, onClose, onSucc
                 </div>
 
                 <div>
-                  <input
-                    value={yesNoMode === "found" ? "ไม่พบ" : "ไม่ใช่"}
-                    disabled
-                    style={{ width: "100%" }}
-                  />
+                  <input value={getNoLabel()} disabled style={{ width: "100%" }} />
                 </div>
                 <div>
                   <input
