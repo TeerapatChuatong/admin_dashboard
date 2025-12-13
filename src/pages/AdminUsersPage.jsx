@@ -8,71 +8,65 @@ import { deleteUserApi } from "../api/deleteUserApi";
 import CreateUserModal from "../components/CreateUserModal";
 import EditUserModal from "../components/EditUserModal";
 
+// ✅ helper: เช็คว่าเป็น super admin หรือไม่ (รองรับทั้ง super admin / super_admin / ตัวใหญ่ตัวเล็ก)
+function isSuperAdminUser(u) {
+  if (!u || !u.role) return false;
+  const raw = String(u.role).toLowerCase().trim();  // "super admin"
+  const normalized = raw.replace(/[\s_]+/g, "");    // เอาช่องว่าง/underscore ออก → "superadmin"
+  return normalized === "superadmin";
+}
+
 export default function AdminUsersPage() {
   const { user, logout } = useAuth();
-
   const [users, setUsers] = useState([]);
   const [keyword, setKeyword] = useState("");
-  const [loading, setLoading] = useState(true);    // โหลดครั้งแรก / รีเฟรชใหญ่
-  const [searching, setSearching] = useState(false); // ค้นหาแบบ live
+  const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
 
   const [openCreate, setOpenCreate] = useState(false);
   const [editUser, setEditUser] = useState(null);
 
-  // โหลดทั้งหมด (ใช้ตอนเปิดหน้า + รีเฟรชใหญ่)
   async function loadUsers() {
     setLoading(true);
     setError("");
     try {
-      const list = await readUsersApi();
-      setUsers(list);
+      const data = await readUsersApi();
+      const arr = Array.isArray(data) ? data : [];
+      // ⬇️ กรอง super admin ออก
+      setUsers(arr.filter((u) => !isSuperAdminUser(u)));
     } catch (err) {
-      setError(err.message || "โหลดข้อมูลผู้ใช้ไม่สำเร็จ");
+      setError(err.message || "โหลดผู้ใช้ไม่สำเร็จ");
+      setUsers([]);
     } finally {
       setLoading(false);
     }
   }
 
-  // โหลดรอบแรก
   useEffect(() => {
     loadUsers();
   }, []);
 
-  // ✅ Live search: พิมพ์แล้วค้นหาแบบสมูท
   useEffect(() => {
-    const q = keyword.trim();
+    let cancelled = false;
 
-    // ถ้าว่าง → แสดงทั้งหมด แต่ไม่ต้องโชว์ "กำลังโหลด..." ใหญ่
-    if (q === "") {
-      let cancelled = false;
-      setSearching(true);
-      (async () => {
-        try {
-          const list = await readUsersApi();
-          if (!cancelled) setUsers(list);
-        } catch (err) {
-          if (!cancelled) {
-            setError(err.message || "โหลดข้อมูลผู้ใช้ไม่สำเร็จ");
-          }
-        } finally {
-          if (!cancelled) setSearching(false);
-        }
-      })();
+    if (!keyword.trim()) {
+      loadUsers();
       return;
     }
 
-    // มีคำค้น → debounce 400ms แล้วค่อยยิง search
-    let cancelled = false;
+    setSearching(true);
     const timer = setTimeout(async () => {
-      setSearching(true);
-      setError("");
       try {
-        const list = await searchUsersApi(q);
-        if (!cancelled) setUsers(list);
+        const data = await searchUsersApi(keyword.trim());
+        const arr = Array.isArray(data) ? data : [];
+        if (!cancelled) {
+          // ⬇️ ตรงผลค้นหาก็กรอง super admin ออกเหมือนกัน
+          setUsers(arr.filter((u) => !isSuperAdminUser(u)));
+        }
       } catch (err) {
         if (!cancelled) {
-          setError(err.message || "ค้นหาไม่สำเร็จ");
+          setError(err.message || "ค้นหาผู้ใช้ไม่สำเร็จ");
         }
       } finally {
         if (!cancelled) setSearching(false);
@@ -85,34 +79,28 @@ export default function AdminUsersPage() {
     };
   }, [keyword]);
 
-  function startEdit(u) {
-    if (u.role === "super_admin") {
-      alert("ไม่สามารถแก้ไขข้อมูลของ super admin ผ่านหน้านี้ได้");
-      return;
-    }
-    setEditUser(u);
-  }
-
-  async function handleDelete(id, role) {
-    if (role === "super_admin") {
-      alert("ไม่สามารถลบ super admin ได้");
-      return;
-    }
+  async function handleDelete(u) {
     if (!window.confirm("ยืนยันลบผู้ใช้นี้?")) return;
-
     setError("");
     try {
-      await deleteUserApi(id);
-      setUsers((prev) => prev.filter((u) => u.id !== id));
+      await deleteUserApi(u.id);
+      await loadUsers();
     } catch (err) {
-      setError(err.message || "ลบไม่สำเร็จ");
+      setError(err.message || "ลบผู้ใช้ไม่สำเร็จ");
     }
   }
 
   return (
     <div className="page">
       <header className="page-header">
-        <h1>จัดการผู้ใช้งาน</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* ✅ ปุ่มกลับหน้าหลัก */}
+          <a href="/admin" className="btn ghost">
+            ← กลับหน้าหลัก
+          </a>
+          <h1 style={{ margin: 0 }}>จัดการผู้ใช้งาน</h1>
+        </div>
+
         <div className="header-right">
           <span>
             เข้าสู่ระบบเป็น: {user?.username ?? user?.email} ({user?.role})
@@ -125,50 +113,32 @@ export default function AdminUsersPage() {
 
       {error && <div className="alert error">{error}</div>}
 
-      {/* แถวค้นหา + ปุ่มเพิ่ม */}
-      <div className="card">
-        <div className="form-row" style={{ alignItems: "center" }}>
-          <input
-            type="text"
-            placeholder="ค้นหาจากชื่อผู้ใช้ / อีเมล"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-          />
-
-          {/* แสดงสถานะค้นหาแบบเบา ๆ ไม่กระตุกจอ */}
-          {searching && (
-            <span style={{ fontSize: 12, color: "#6b7280" }}>
-              กำลังค้นหา...
-            </span>
-          )}
-
-          <button
-            type="button"
-            className="btn ghost"
-            onClick={() => setKeyword("")}
-          >
-            รีเซ็ต
-          </button>
-
-          <div style={{ flex: 1 }} />
-
-          <button
-            type="button"
-            className="btn"
-            onClick={() => setOpenCreate(true)}
-          >
-            + เพิ่มผู้ใช้
-          </button>
-        </div>
+      <div
+        className="card"
+        style={{ display: "flex", gap: 8, alignItems: "center" }}
+      >
+        <input
+          placeholder="ค้นหาจากชื่อผู้ใช้ / อีเมล"
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          style={{ flex: 1 }}
+        />
+        {searching && (
+          <span style={{ fontSize: 12, color: "#6b7280" }}>กำลังค้นหา...</span>
+        )}
+        <button className="btn ghost" onClick={() => setKeyword("")}>
+          รีเซ็ต
+        </button>
+        <button className="btn" onClick={() => setOpenCreate(true)}>
+          + เพิ่มผู้ใช้
+        </button>
       </div>
 
-      {/* ตารางผู้ใช้งาน */}
       <div className="card">
-        <h2>รายการผู้ใช้งาน</h2>
         {loading ? (
-          <p>กำลังโหลด...</p>
+          <div>กำลังโหลด...</div>
         ) : users.length === 0 ? (
-          <p>ไม่มีข้อมูลผู้ใช้งาน</p>
+          <div>ไม่พบข้อมูลผู้ใช้งาน</div>
         ) : (
           <table className="table">
             <thead>
@@ -181,47 +151,30 @@ export default function AdminUsersPage() {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => {
-                const isSuperAdmin = u.role === "super admin";
-                return (
-                  <tr key={u.id}>
-                    <td>{u.id}</td>
-                    <td>{u.username}</td>
-                    <td>{u.email}</td>
-                    <td>{u.role}</td>
-                    <td>
-                      {isSuperAdmin ? (
-                        <span style={{ fontSize: 12, color: "#6b7280" }}>
-                          super admin
-                        </span>
-                      ) : (
-                        <>
-                          <button
-                            className="btn xs"
-                            type="button"
-                            onClick={() => startEdit(u)}
-                          >
-                            แก้ไข
-                          </button>
-                          <button
-                            className="btn xs danger"
-                            type="button"
-                            onClick={() => handleDelete(u.id, u.role)}
-                          >
-                            ลบ
-                          </button>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+              {users.map((u) => (
+                <tr key={u.id}>
+                  <td>{u.id}</td>
+                  <td>{u.username}</td>
+                  <td>{u.email}</td>
+                  <td>{u.role}</td>
+                  <td>
+                    <button className="btn xs" onClick={() => setEditUser(u)}>
+                      แก้ไข
+                    </button>{" "}
+                    <button
+                      className="btn xs danger"
+                      onClick={() => handleDelete(u)}
+                    >
+                      ลบ
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}
       </div>
 
-      {/* Modal: เพิ่มผู้ใช้ */}
       {openCreate && (
         <CreateUserModal
           onClose={() => setOpenCreate(false)}
@@ -232,7 +185,6 @@ export default function AdminUsersPage() {
         />
       )}
 
-      {/* Modal: แก้ไขผู้ใช้ */}
       {editUser && (
         <EditUserModal
           user={editUser}

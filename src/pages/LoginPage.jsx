@@ -18,12 +18,16 @@ export default function LoginPage() {
 
     try {
       const user = await login({ account, password });
+
+      // กัน user ทั่วไปเข้าหน้าแอดมิน
       if (user.role !== "admin" && user.role !== "super_admin") {
         setError("เฉพาะ admin หรือ super admin เท่านั้นที่เข้าหน้านี้ได้");
         logout();
         return;
       }
-      navigate("/admin/users");
+
+      // ✅ เข้าสำเร็จ → ไปหน้ารวมแอดมิน
+      navigate("/admin", { replace: true });
     } catch (err) {
       setError(err.message || "เข้าสู่ระบบไม่สำเร็จ");
     } finally {
@@ -34,7 +38,7 @@ export default function LoginPage() {
   return (
     <div className="login-wrapper">
       <div className="login-card">
-        <h1>เข้าสู่ระบบผู้ดูแล</h1>
+        <div style={{ textAlign: "center" }}><h2>เข้าสู่ระบบผู้ดูแล</h2></div>
 
         {error && <div className="alert error">{error}</div>}
 

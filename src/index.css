@@ -74,13 +74,18 @@ body {
 
 /* Inputs */
 input,
-select {
+select,
+textarea {
   width: 100%;
   padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid #d1d5db;
   font-size: 13px;
   box-sizing: border-box;
+}
+
+textarea {
+  font-family: inherit;
 }
 
 .form-row {
@@ -98,7 +103,8 @@ select {
 .form-actions {
   display: flex;
   gap: 8px;
-  margin-top: 4px;
+  margin-top: 12px;
+  justify-content: flex-end;
 }
 
 /* Buttons */
@@ -111,9 +117,8 @@ select {
   font-size: 13px;
   cursor: pointer;
   transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.1s ease;
-  white-space: nowrap;   /* ✅ เพิ่มบรรทัดนี้ */
+  white-space: nowrap;
 }
-
 
 .btn:hover {
   transform: translateY(-1px);
@@ -172,8 +177,8 @@ select {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.25); /* มืดบาง ๆ */
-  backdrop-filter: blur(4px);          /* เบลอพื้นหลัง */
+  background: rgba(15, 23, 42, 0.25);
+  backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -191,7 +196,7 @@ select {
   animation: modal-pop 0.18s ease-out;
 }
 
-/* ให้ฟอร์มใน modal เรียงลงเป็นคอลัมน์เดียว จะได้อ่านง่าย */
+/* ให้ฟอร์มใน modal เรียงลงเป็นคอลัมน์เดียว */
 .modal-card .form-grid {
   grid-template-columns: 1fr;
 }
@@ -199,6 +204,43 @@ select {
 .modal-card h2 {
   margin-top: 0;
   margin-bottom: 12px;
+}
+
+/* textarea ใน modal: โค้งมน + ห้าม resize */
+.modal-card textarea {
+  resize: none;
+  min-height: 72px;
+  border-radius: 12px;
+}
+/* ====== สถานะคำถาม ====== */
+.status-field {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.status-label {
+  font-size: 12px;
+  color: #000000cb;
+  display: block;
+  margin-bottom: 4px;
+}
+/* จัด 2 คอลัมน์ห่างกัน ไม่ทับกัน */
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;   /* ถ้ายังรู้สึกห่าง ลดเหลือ 12 ก็ได้ */
+}
+
+.status-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.status-option input[type="radio"] {
+  margin: 0;
 }
 
 /* แอนิเมชันเด้งเบา ๆ ตอนเปิด */
@@ -211,4 +253,8 @@ select {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+a.btn.ghost {
+  text-decoration: none;
 }
