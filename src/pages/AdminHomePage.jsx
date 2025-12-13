@@ -21,9 +21,7 @@ export default function AdminHomePage() {
       </header>
 
       <div className="card">
-        <p style={{ marginTop: 0, color: "#6b7280" }}>
-          เลือกเมนูที่ต้องการจัดการ
-        </p>
+        <p style={{ marginTop: 0, color: "#6b7280" }}>เลือกเมนูที่ต้องการจัดการ</p>
 
         <div
           style={{
@@ -90,6 +88,27 @@ export default function AdminHomePage() {
             </span>
             <div style={{ marginTop: 8 }}>
               <button className="btn xs">ไปหน้าคำตอบ</button>
+            </div>
+          </Link>
+
+          {/* ✅ เพิ่มเมนูคำอธิบายโรค */}
+          <Link
+            to="/admin/diseases"
+            className="card"
+            style={{
+              textDecoration: "none",
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              border: "1px solid #f3f4f6",
+            }}
+          >
+            <h2 style={{ margin: 0 }}>จัดการคำอธิบายโรค</h2>
+            <span style={{ fontSize: 13, color: "#6b7280" }}>
+              แก้ไข description / causes / symptoms / รูปโรค
+            </span>
+            <div style={{ marginTop: 8 }}>
+              <button className="btn xs">ไปหน้าคำอธิบายโรค</button>
             </div>
           </Link>
         </div>

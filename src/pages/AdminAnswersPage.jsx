@@ -2,6 +2,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
+import { API_BASE, toJsonOrError } from "../api/apiClient";
+
 import { readAnswersApi } from "../api/readAnswersApi";
 import { searchAnswersApi } from "../api/searchAnswersApi";
 import { deleteAnswerApi } from "../api/deleteAnswerApi";
@@ -19,29 +21,37 @@ function pick(obj, keys, fallback = "") {
   return fallback;
 }
 
-function getQuestionId(q) {
-  return q?.question_id ?? q?.id ?? "";
+function extractList(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.rows)) return data.rows;
+  return [];
 }
 
-function getQuestionText(q) {
-  return q?.question_text ?? q?.question ?? q?.text ?? "";
-}
+async function fetchScoresMap({ disease_id, question_id }) {
+  // ✅ ดึงคะแนนจาก scores เพื่อ merge เข้า choices (แก้ปัญหาแสดง 0)
+  if (!disease_id || !question_id) return new Map();
 
-// สร้าง map: disease_id -> Set(question_id)
-function buildDiseaseToQuestionIds(dqList) {
-  const map = new Map();
-  const arr = Array.isArray(dqList) ? dqList : [];
+  const url = `${API_BASE}/scores/read_scores.php?disease_id=${encodeURIComponent(
+    disease_id
+  )}&question_id=${encodeURIComponent(question_id)}`;
 
-  arr.forEach((row) => {
-    const did = String(row?.disease_id ?? row?.diseaseId ?? "").trim();
-    const qid = String(row?.question_id ?? row?.questionId ?? "").trim();
-    if (!did || !qid) return;
+  const res = await fetch(url);
+  const data = await toJsonOrError(res, "โหลดคะแนนไม่สำเร็จ");
+  const list = extractList(data);
 
-    if (!map.has(did)) map.set(did, new Set());
-    map.get(did).add(qid);
-  });
-
+  const map = new Map(); // choice_id -> scoreRow
+  for (const s of list) {
+    const cid = String(s.choice_id ?? s.choiceId ?? "");
+    if (!cid) continue;
+    map.set(cid, s);
+  }
   return map;
+}
+
+function qText(q) {
+  return String(q?.question_text ?? q?.question ?? q?.text ?? "");
 }
 
 export default function AdminAnswersPage() {
@@ -51,7 +61,7 @@ export default function AdminAnswersPage() {
 
   const [diseases, setDiseases] = useState([]);
   const [allQuestions, setAllQuestions] = useState([]);
-  const [diseaseQuestions, setDiseaseQuestions] = useState([]);
+  const [diseaseQuestions, setDiseaseQuestions] = useState([]); // pivot rows
 
   const [selectedDiseaseId, setSelectedDiseaseId] = useState("");
   const [selectedQuestionId, setSelectedQuestionId] = useState("");
@@ -64,98 +74,122 @@ export default function AdminAnswersPage() {
   const [openCreate, setOpenCreate] = useState(false);
   const [editAnswer, setEditAnswer] = useState(null);
 
-  // โหลดข้อมูลพื้นฐาน: โรค + คำถาม + pivot disease_questions
-  useEffect(() => {
-    (async () => {
-      try {
-        setError("");
-        const [ds, qs, dqs] = await Promise.all([
-          readDiseasesApi(),
-          readQuestionsApi(),
-          readDiseaseQuestionsApi(),
-        ]);
-
-        setDiseases(Array.isArray(ds) ? ds : []);
-        setAllQuestions(Array.isArray(qs) ? qs : []);
-        setDiseaseQuestions(Array.isArray(dqs) ? dqs : []);
-      } catch (err) {
-        setError(err.message || "โหลดข้อมูลเริ่มต้นไม่สำเร็จ");
-        setDiseases([]);
-        setAllQuestions([]);
-        setDiseaseQuestions([]);
-      }
-    })();
-  }, []);
-
-  const diseaseToQids = useMemo(
-    () => buildDiseaseToQuestionIds(diseaseQuestions),
-    [diseaseQuestions]
-  );
-
-  // ✅ ถ้ายังไม่เลือกโรค -> ไม่แสดงคำถาม
-  // ✅ ถ้าเลือกโรคแล้ว -> แสดงเฉพาะคำถามที่อยู่ใน disease_questions ของโรคนั้น
+  // ✅ คำถามของโรค (จาก pivot disease_questions)
   const questionsForDisease = useMemo(() => {
     if (!selectedDiseaseId) return [];
 
-    const set = diseaseToQids.get(String(selectedDiseaseId));
-    if (!set || set.size === 0) return [];
+    const did = String(selectedDiseaseId);
+    const qIds = new Set(
+      diseaseQuestions
+        .filter((r) => String(r.disease_id ?? r.diseaseId) === did)
+        .map((r) => String(r.question_id ?? r.questionId))
+        .filter(Boolean)
+    );
 
-    const list = allQuestions
-      .filter((q) => set.has(String(getQuestionId(q))))
-      .sort((a, b) => {
-        const ao = Number(a.sort_order ?? a.order_no ?? 0);
-        const bo = Number(b.sort_order ?? b.order_no ?? 0);
-        if (ao !== bo) return ao - bo;
-        return Number(getQuestionId(a)) - Number(getQuestionId(b));
-      });
+    const filtered = allQuestions.filter((q) =>
+      qIds.has(String(q.question_id ?? q.id))
+    );
 
-    return list;
-  }, [selectedDiseaseId, allQuestions, diseaseToQids]);
+    // sort ตาม sort_order ถ้ามี
+    filtered.sort((a, b) => {
+      const ao = Number(a.sort_order ?? a.order_index ?? 0);
+      const bo = Number(b.sort_order ?? b.order_index ?? 0);
+      if (ao !== bo) return ao - bo;
+      return Number(a.question_id ?? a.id ?? 0) - Number(b.question_id ?? b.id ?? 0);
+    });
+
+    return filtered;
+  }, [allQuestions, diseaseQuestions, selectedDiseaseId]);
 
   const currentQuestion = useMemo(() => {
     if (!selectedQuestionId) return null;
     return (
       allQuestions.find(
-        (q) => String(getQuestionId(q)) === String(selectedQuestionId)
+        (q) => String(q.question_id ?? q.id) === String(selectedQuestionId)
       ) || null
     );
   }, [allQuestions, selectedQuestionId]);
 
-  const currentQuestionText = getQuestionText(currentQuestion);
+  const currentQuestionText = currentQuestion ? qText(currentQuestion) : "";
 
-  // โหลดคำตอบของคำถามที่เลือก
+  useEffect(() => {
+    (async () => {
+      try {
+        const [ds, qs, dqs] = await Promise.all([
+          readDiseasesApi(),
+          readQuestionsApi(),
+          readDiseaseQuestionsApi(),
+        ]);
+        setDiseases(Array.isArray(ds) ? ds : extractList(ds));
+        setAllQuestions(Array.isArray(qs) ? qs : extractList(qs));
+        setDiseaseQuestions(Array.isArray(dqs) ? dqs : extractList(dqs));
+      } catch (err) {
+        setError(err?.message || "โหลดข้อมูลเริ่มต้นไม่สำเร็จ");
+      }
+    })();
+  }, []);
+
   async function loadAnswers(questionId = selectedQuestionId) {
-    if (!questionId) {
+    if (!questionId || !selectedDiseaseId) {
       setAnswers([]);
       return;
     }
 
     setLoading(true);
     setError("");
+
     try {
-      const data = await readAnswersApi(questionId);
-      setAnswers(Array.isArray(data) ? data : []);
+      // 1) อ่าน choices ของคำถาม
+      const choices = await readAnswersApi(questionId);
+      const list = Array.isArray(choices) ? choices : extractList(choices);
+
+      // 2) อ่าน scores แล้ว merge ใส่แต่ละ choice (fix score 0)
+      const scoreMap = await fetchScoresMap({
+        disease_id: selectedDiseaseId,
+        question_id: questionId,
+      });
+
+      const merged = list.map((c) => {
+        const cid = String(c.choice_id ?? c.id ?? "");
+        const s = scoreMap.get(cid);
+
+        const risk_score =
+          s?.risk_score ??
+          s?.score_value ??
+          s?.score ??
+          c?.risk_score ??
+          c?.score_value ??
+          c?.score ??
+          0;
+
+        return {
+          ...c,
+          risk_score,
+          _score_id: s?.score_id ?? s?.id ?? null,
+        };
+      });
+
+      setAnswers(merged);
     } catch (err) {
-      setError(err.message || "โหลดคำตอบไม่สำเร็จ");
+      setError(err?.message || "โหลดคำตอบไม่สำเร็จ");
       setAnswers([]);
     } finally {
       setLoading(false);
     }
   }
 
-  // เมื่อเลือกคำถาม → โหลดคำตอบ
   useEffect(() => {
     loadAnswers(selectedQuestionId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedQuestionId]);
+  }, [selectedQuestionId, selectedDiseaseId]);
 
-  // ค้นหาเฉพาะในคำถามที่เลือก
   useEffect(() => {
     let cancelled = false;
 
-    if (!selectedQuestionId) return;
+    if (!selectedQuestionId || !selectedDiseaseId) return;
 
-    if (!keyword.trim()) {
+    const kw = String(keyword ?? "").trim();
+    if (!kw) {
       loadAnswers(selectedQuestionId);
       return;
     }
@@ -164,27 +198,58 @@ export default function AdminAnswersPage() {
     const timer = setTimeout(async () => {
       try {
         const data = await searchAnswersApi({
-          keyword: keyword.trim(),
+          keyword: kw,
           question_id: selectedQuestionId,
         });
-        if (!cancelled) setAnswers(Array.isArray(data) ? data : []);
+
+        const list = Array.isArray(data) ? data : extractList(data);
+
+        // merge scores อีกครั้ง (เพราะ search ก็ต้องโชว์คะแนน)
+        const scoreMap = await fetchScoresMap({
+          disease_id: selectedDiseaseId,
+          question_id: selectedQuestionId,
+        });
+
+        const merged = list.map((c) => {
+          const cid = String(c.choice_id ?? c.id ?? "");
+          const s = scoreMap.get(cid);
+          const risk_score =
+            s?.risk_score ??
+            s?.score_value ??
+            s?.score ??
+            c?.risk_score ??
+            c?.score_value ??
+            c?.score ??
+            0;
+
+          return {
+            ...c,
+            risk_score,
+            _score_id: s?.score_id ?? s?.id ?? null,
+          };
+        });
+
+        if (!cancelled) setAnswers(merged);
       } catch (err) {
-        if (!cancelled) setError(err.message || "ค้นหาคำตอบไม่สำเร็จ");
+        if (!cancelled) setError(err?.message || "ค้นหาคำตอบไม่สำเร็จ");
       } finally {
         if (!cancelled) setSearching(false);
       }
-    }, 400);
+    }, 350);
 
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [keyword, selectedQuestionId]);
+  }, [keyword, selectedQuestionId, selectedDiseaseId]);
 
   async function handleDelete(a) {
     const id = pick(a, ["choice_id", "answer_id", "id"]);
-    if (!id) return alert("ไม่พบ ID ของคำตอบ");
+    if (!id) {
+      alert("ไม่พบ ID ของคำตอบ");
+      return;
+    }
     if (!window.confirm("ยืนยันลบคำตอบนี้?")) return;
 
     setError("");
@@ -192,7 +257,7 @@ export default function AdminAnswersPage() {
       await deleteAnswerApi(id);
       await loadAnswers();
     } catch (err) {
-      setError(err.message || "ลบคำตอบไม่สำเร็จ");
+      setError(err?.message || "ลบคำตอบไม่สำเร็จ");
     }
   }
 
@@ -232,7 +297,6 @@ export default function AdminAnswersPage() {
 
       {error && <div className="alert error">{error}</div>}
 
-      {/* แถบเลือกโรค + คำถาม + ค้นหา */}
       <div
         className="card"
         style={{
@@ -246,7 +310,7 @@ export default function AdminAnswersPage() {
         <select
           value={selectedDiseaseId}
           onChange={handleDiseaseChange}
-          style={{ minWidth: 200 }}
+          style={{ minWidth: 220 }}
         >
           <option value="">-- เลือกโรค --</option>
           {diseases.map((d) => (
@@ -261,32 +325,32 @@ export default function AdminAnswersPage() {
           ))}
         </select>
 
-        {/* เลือกคำถาม: ถ้ายังไม่เลือกโรค -> disable */}
+        {/* เลือกคำถามของโรค */}
         <select
           value={selectedQuestionId}
           onChange={handleQuestionChange}
-          style={{ minWidth: 360 }}
+          style={{ minWidth: 320 }}
           disabled={!selectedDiseaseId}
         >
           <option value="">
             {!selectedDiseaseId
               ? "-- กรุณาเลือกโรคก่อน --"
               : questionsForDisease.length === 0
-              ? "-- โรคนี้ยังไม่มีคำถาม --"
+              ? "-- ยังไม่มีคำถามของโรคนี้ --"
               : "-- เลือกคำถามของโรคนี้ --"}
           </option>
 
           {questionsForDisease.map((q) => {
-            const id = getQuestionId(q);
-            const text = getQuestionText(q);
+            const id = q.question_id ?? q.id;
             return (
               <option key={id} value={id}>
-                {text}
+                {qText(q)}
               </option>
             );
           })}
         </select>
 
+        {/* ค้นหา */}
         <input
           placeholder="ค้นหาคำตอบ / ID"
           value={keyword}
@@ -294,9 +358,11 @@ export default function AdminAnswersPage() {
           style={{ flex: 1, minWidth: 180 }}
           disabled={!selectedQuestionId}
         />
+
         {searching && (
           <span style={{ fontSize: 12, color: "#6b7280" }}>กำลังค้นหา...</span>
         )}
+
         <button
           className="btn ghost"
           onClick={() => setKeyword("")}
@@ -308,18 +374,15 @@ export default function AdminAnswersPage() {
         <button
           className="btn"
           onClick={() => setOpenCreate(true)}
-          disabled={!selectedQuestionId}
+          disabled={!selectedQuestionId || !selectedDiseaseId}
         >
           + เพิ่มคำตอบ
         </button>
       </div>
 
-      {/* ตารางคำตอบ */}
       <div className="card">
-        {!selectedDiseaseId ? (
-          <div>กรุณาเลือกโรคก่อน</div>
-        ) : !selectedQuestionId ? (
-          <div>กรุณาเลือกคำถามของโรคที่เลือกก่อนเพื่อจัดการคำตอบ</div>
+        {!selectedQuestionId ? (
+          <div>กรุณาเลือกโรคและคำถามด้านบนก่อนเพื่อจัดการคำตอบ</div>
         ) : loading ? (
           <div>กำลังโหลด...</div>
         ) : answers.length === 0 ? (
@@ -338,30 +401,20 @@ export default function AdminAnswersPage() {
             <tbody>
               {answers.map((a) => {
                 const id = pick(a, ["choice_id", "answer_id", "id"]);
-                const text = pick(a, [
-                  "choice_label",
-                  "answer_text",
-                  "answer",
-                  "text",
-                ]);
-                const score = pick(a, ["risk_score", "score", "points"], 0);
+                const text = pick(a, ["choice_label", "answer_text", "answer", "text"]);
+                const score = pick(a, ["risk_score", "score_value", "score", "points"], 0);
 
                 return (
                   <tr key={id}>
                     <td>{id}</td>
-                    <td style={{ whiteSpace: "pre-wrap" }}>
-                      {currentQuestionText}
-                    </td>
+                    <td style={{ whiteSpace: "pre-wrap" }}>{currentQuestionText}</td>
                     <td style={{ whiteSpace: "pre-wrap" }}>{text}</td>
-                    <td>{score}</td>
+                    <td>{Number(score) || 0}</td>
                     <td>
                       <button className="btn xs" onClick={() => setEditAnswer(a)}>
                         แก้ไข
                       </button>{" "}
-                      <button
-                        className="btn xs danger"
-                        onClick={() => handleDelete(a)}
-                      >
+                      <button className="btn xs danger" onClick={() => handleDelete(a)}>
                         ลบ
                       </button>
                     </td>

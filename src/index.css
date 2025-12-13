@@ -6,6 +6,17 @@ body {
   color: #111827;
 }
 
+/* ✅ ให้พื้นหลังติดทั้งแอปเสมอ */
+html,
+body,
+#root {
+  min-height: 100%;
+}
+#root {
+  min-height: 100vh;
+  background: #f3f4f6;
+}
+
 /* Login */
 .login-wrapper {
   min-height: 100vh;
@@ -86,6 +97,13 @@ textarea {
 
 textarea {
   font-family: inherit;
+}
+
+/* ✅ กัน radio/checkbox โดน width:100% */
+input[type="radio"],
+input[type="checkbox"] {
+  width: auto;
+  padding: 0;
 }
 
 .form-row {
@@ -184,13 +202,30 @@ textarea {
   align-items: center;
   justify-content: center;
   z-index: 50;
+
+  /* ✅ กันล้นจอ + เผื่อจอบางเครื่อง */
+  padding: 18px;
+  overflow: auto;
 }
 
+/* ✅ Fallback: ถ้าลูกของ modal-backdrop ไม่ได้ใส่ class="modal-card"
+   ให้มันเป็นการ์ดพื้นหลังขาวอัตโนมัติ (แก้ “ฟอร์มลอยบนพื้นเทา”) */
+.modal-backdrop > *:not(.modal-card) {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 20px 18px 16px;
+  width: 100%;
+  max-width: 880px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.35);
+  animation: modal-pop 0.18s ease-out;
+}
+
+/* การ์ดจริงของ modal (ถ้าใช้ class modal-card อยู่แล้ว) */
 .modal-card {
   background: #ffffff;
   border-radius: 20px;
   padding: 20px 18px 16px;
-  max-width: 420px;
+  max-width: 880px; /* ✅ เพิ่มให้พอดีกับฟอร์มคำตอบแบบ multi */
   width: 100%;
   box-shadow: 0 18px 45px rgba(15, 23, 42, 0.35);
   animation: modal-pop 0.18s ease-out;
@@ -212,6 +247,7 @@ textarea {
   min-height: 72px;
   border-radius: 12px;
 }
+
 /* ====== สถานะคำถาม ====== */
 .status-field {
   width: 100%;
@@ -224,11 +260,12 @@ textarea {
   display: block;
   margin-bottom: 4px;
 }
+
 /* จัด 2 คอลัมน์ห่างกัน ไม่ทับกัน */
 .status-row {
   display: flex;
   align-items: center;
-  gap: 16px;   /* ถ้ายังรู้สึกห่าง ลดเหลือ 12 ก็ได้ */
+  gap: 16px;
 }
 
 .status-option {

@@ -4,13 +4,14 @@ export const API_BASE = "http://localhost/crud/api";
 export const AUTH_BASE = `${API_BASE}/auth`;
 export const USERS_BASE = `${API_BASE}/users`;
 
-// ✅ เพิ่มสำหรับ Q&A
+// ✅ เพิ่ม BASE ที่ขาด
+export const CHOICES_BASE = `${API_BASE}/choices`;
+export const SCORES_BASE  = `${API_BASE}/scores`;
+
+// ✅ ของเดิม (ถ้ายังใช้)
 export const SYMPTOMS_BASE = `${API_BASE}/symptoms`;
 export const QUESTIONS_BASE = `${SYMPTOMS_BASE}/questions`;
 export const ANSWERS_BASE = `${SYMPTOMS_BASE}/answers`;
-
-// ✅ เพิ่มสำหรับคะแนน
-export const SCORES_BASE = `${API_BASE}/scores`;
 
 // แปลง response → json พร้อมจัดการ error ให้เหมือนกันทุกที่
 export async function toJsonOrError(res, defaultMsg) {
@@ -28,7 +29,7 @@ export async function toJsonOrError(res, defaultMsg) {
   return data;
 }
 
-// ใช้ตอน read/search user ที่ backend อาจห่อ data หลายแบบ
+// ✅ กัน error: readUsersApi import extractUsers แล้วหาไม่เจอ
 export function extractUsers(data) {
   return data.data || data.users || data || [];
 }

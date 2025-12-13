@@ -1,105 +1,219 @@
-import React, { useEffect, useState } from "react";
-import { updateAnswerApi } from "../api/updateAnswerApi";
+// src/components/EditAnswerModal.jsx
+import React, { useEffect, useMemo, useState } from "react";
+import { API_BASE, toJsonOrError } from "../api/apiClient";
 
-function pick(obj, keys, fallback = "") {
-  for (const k of keys) {
-    if (obj && obj[k] !== undefined && obj[k] !== null) return obj[k];
-  }
-  return fallback;
+import { updateAnswerApi } from "../api/updateAnswerApi";
+import { createScoreApi } from "../api/createScoreApi";
+import { updateScoreApi } from "../api/updateScoreApi";
+
+function extractList(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.rows)) return data.rows;
+  return [];
 }
 
-function getQuestionText(q) {
-  return q?.question_text ?? q?.question ?? q?.text ?? "";
+function qId(q) {
+  return q?.question_id ?? q?.id ?? "";
+}
+function qText(q) {
+  return String(q?.question_text ?? q?.question ?? q?.text ?? "");
+}
+function qType(q) {
+  return String(q?.question_type ?? q?.type ?? "").trim();
+}
+function typeLabel(type) {
+  const t = String(type || "");
+  if (t === "yes_no") return "ใช่/ไม่ใช่";
+  if (t === "numeric") return "ตัวเลข";
+  if (t === "multi") return "หลายตัวเลือก";
+  return t || "-";
+}
+
+async function fetchScoresMap({ disease_id, question_id }) {
+  if (!disease_id || !question_id) return new Map();
+
+  const url = `${API_BASE}/scores/read_scores.php?disease_id=${encodeURIComponent(
+    disease_id
+  )}&question_id=${encodeURIComponent(question_id)}`;
+
+  const res = await fetch(url);
+  const data = await toJsonOrError(res, "โหลดคะแนนไม่สำเร็จ");
+  const list = extractList(data);
+
+  const map = new Map(); // choice_id -> scoreRow
+  for (const s of list) {
+    const cid = String(s.choice_id ?? s.choiceId ?? "");
+    if (!cid) continue;
+    map.set(cid, s);
+  }
+  return map;
 }
 
 export default function EditAnswerModal({ answer, question, diseaseId, onClose, onSuccess }) {
-  const [form, setForm] = useState({
-    choice_id: "",
-    choice_label: "",
-    score: 0,
-  });
+  const questionId = useMemo(() => String(qId(question) || ""), [question]);
+  const questionText = useMemo(() => qText(question), [question]);
+  const questionType = useMemo(() => qType(question), [question]);
 
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const choiceId = useMemo(
+    () => String(answer?.choice_id ?? answer?.id ?? ""),
+    [answer]
+  );
 
-  useEffect(() => {
-    if (!answer) return;
+  const initialLabel = useMemo(
+    () => String(answer?.choice_label ?? answer?.answer_text ?? "").trim(),
+    [answer]
+  );
 
-    const id = pick(answer, ["choice_id", "answer_id", "id"], "");
-    const label = pick(answer, ["choice_label", "answer_text", "answer", "text"], "");
-    const score = pick(answer, ["risk_score", "score", "points"], 0);
-
-    setForm({
-      choice_id: id,
-      choice_label: String(label ?? ""),
-      score: Number(score) || 0,
-    });
+  const initialScore = useMemo(() => {
+    const v =
+      answer?.risk_score ??
+      answer?.score_value ??
+      answer?.score ??
+      answer?.points ??
+      0;
+    return Number(v) || 0;
   }, [answer]);
 
-  if (!answer) return null;
+  const [label, setLabel] = useState(initialLabel);
+  const [score, setScore] = useState(initialScore);
+  const [scoreId, setScoreId] = useState(answer?._score_id ?? null);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // ✅ หา score_id จาก scores จริง (กันกรณี list ยังไม่ส่งมา)
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!diseaseId || !questionId || !choiceId) return;
+        const scoreMap = await fetchScoresMap({
+          disease_id: diseaseId,
+          question_id: questionId,
+        });
+        const row = scoreMap.get(String(choiceId));
+        if (row?.score_id) setScoreId(row.score_id);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [diseaseId, questionId, choiceId]);
+
+  async function upsertScore({ disease_id, question_id, choice_id, risk_score }) {
+    // ถ้ามี score_id → update
+    if (scoreId) {
+      await updateScoreApi({
+        score_id: scoreId,
+        disease_id,
+        question_id,
+        choice_id,
+        risk_score,
+      });
+      return;
+    }
+
+    // ไม่มี → create
+    await createScoreApi({ disease_id, question_id, choice_id, risk_score });
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setSaving(true);
     setError("");
 
+    if (!choiceId) {
+      setError("ไม่พบ choice_id");
+      return;
+    }
+    if (!questionId) {
+      setError("ไม่พบ question_id");
+      return;
+    }
+    if (!diseaseId) {
+      setError("ไม่พบ disease_id (กรุณาเลือกโรคก่อน)");
+      return;
+    }
+
+    setLoading(true);
     try {
+      // ✅ update choice
       await updateAnswerApi({
-        // ส่งให้ครบ เผื่อ backend ใช้
-        disease_id: diseaseId,
-        choice_id: form.choice_id,
-        choice_label: String(form.choice_label ?? "").trim(),
-        risk_score: Number(form.score) || 0,
-        score: Number(form.score) || 0,
+        choice_id: Number(choiceId),
+        question_id: Number(questionId),
+        choice_label: String(label ?? "").trim(),
       });
 
-      onSuccess && onSuccess();
+      // ✅ upsert score ลง scores
+      await upsertScore({
+        disease_id: Number(diseaseId),
+        question_id: Number(questionId),
+        choice_id: Number(choiceId),
+        risk_score: Number(score) || 0,
+      });
+
+      onSuccess?.();
     } catch (err) {
-      setError(err.message || "แก้ไขคำตอบไม่สำเร็จ");
+      setError(err?.message || "บันทึกการแก้ไขไม่สำเร็จ");
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   }
 
   return (
     <div className="modal-backdrop">
-      <div className="modal-card">
-        <h2>แก้ไขคำตอบ</h2>
+      <div className="modal" style={{ width: 640, maxWidth: "94vw" }}>
+        <h2 style={{ marginTop: 0 }}>แก้ไขคำตอบ</h2>
+
         {error && <div className="alert error">{error}</div>}
 
-        {/* แสดงคำถามที่เลือก */}
-        <div className="card" style={{ padding: 10, marginBottom: 10 }}>
-          <div style={{ fontSize: 12, color: "#6b7280" }}>คำถามที่เลือก</div>
-          <div style={{ whiteSpace: "pre-wrap" }}>
-            {getQuestionText(question) || "-"}
+        <div className="card" style={{ marginBottom: 12 }}>
+          <div style={{ fontWeight: 700 }}>คำถามที่เลือก</div>
+          <div style={{ whiteSpace: "pre-wrap" }}>{questionText || "-"}</div>
+          <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+            ประเภทคำถาม: {typeLabel(questionType)}
           </div>
         </div>
 
-        <form className="form-grid" onSubmit={handleSubmit}>
-          <label>
-            คำตอบ
-            <input
-              value={form.choice_label}
-              onChange={(e) => setForm({ ...form, choice_label: e.target.value })}
-              required
-            />
-          </label>
+        <form onSubmit={handleSubmit}>
+          {/* ตัวช่วยสำหรับ yes_no: ใส่ preset label ได้เร็ว */}
+          {questionType === "yes_no" && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+              <button type="button" className="btn ghost" onClick={() => setLabel("ใช่")}>
+                ใช่
+              </button>
+              <button type="button" className="btn ghost" onClick={() => setLabel("ไม่ใช่")}>
+                ไม่ใช่
+              </button>
+              <button type="button" className="btn ghost" onClick={() => setLabel("พบ")}>
+                พบ
+              </button>
+              <button type="button" className="btn ghost" onClick={() => setLabel("ไม่พบ")}>
+                ไม่พบ
+              </button>
+            </div>
+          )}
 
-          <label>
-            คะแนน
-            <input
-              type="number"
-              value={form.score}
-              onChange={(e) => setForm({ ...form, score: e.target.value })}
-            />
-          </label>
+          <label>คำตอบ</label>
+          <input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            style={{ width: "100%", marginBottom: 10 }}
+          />
 
-          <div className="form-actions">
-            <button className="btn" type="submit" disabled={saving}>
-              {saving ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
-            </button>
-            <button className="btn ghost" type="button" onClick={onClose}>
+          <label>คะแนน</label>
+          <input
+            type="number"
+            value={score}
+            onChange={(e) => setScore(e.target.value)}
+            style={{ width: "100%" }}
+          />
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+            <button type="button" className="btn ghost" onClick={onClose} disabled={loading}>
               ยกเลิก
+            </button>
+            <button type="submit" className="btn" disabled={loading}>
+              {loading ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
             </button>
           </div>
         </form>

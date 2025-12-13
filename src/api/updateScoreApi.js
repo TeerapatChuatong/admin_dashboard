@@ -2,15 +2,15 @@ import { SCORES_BASE, toJsonOrError } from "./apiClient";
 
 export async function updateScoreApi(payload) {
   const res = await fetch(`${SCORES_BASE}/update_scores.php`, {
-    method: "POST",
+    method: "PATCH",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({
       disease_id: payload.disease_id,
       question_id: payload.question_id,
       choice_id: payload.choice_id,
       risk_score: payload.risk_score,
-      score: payload.risk_score,
-      points: payload.risk_score,
+      score_id: payload.score_id,
     }),
   });
 

@@ -7,6 +7,7 @@ import AdminHomePage from "./pages/AdminHomePage";
 import AdminUsersPage from "./pages/AdminUsersPage";
 import AdminQuestionsPage from "./pages/AdminQuestionsPage";
 import AdminAnswersPage from "./pages/AdminAnswersPage";
+import AdminDiseasesPage from "./pages/AdminDiseasesPage"; // ✅ เพิ่ม
 
 import RequireAdmin from "./components/RequireAdmin";
 
@@ -48,6 +49,16 @@ export default function App() {
         element={
           <RequireAdmin>
             <AdminAnswersPage />
+          </RequireAdmin>
+        }
+      />
+
+      {/* ✅ เพิ่ม Route นี้ ไม่งั้นจะโดน path="*" ส่งไป /login */}
+      <Route
+        path="/admin/diseases"
+        element={
+          <RequireAdmin>
+            <AdminDiseasesPage />
           </RequireAdmin>
         }
       />
