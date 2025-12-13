@@ -1,5 +1,5 @@
 // src/pages/AdminAnswersPage.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
 import { readAnswersApi } from "../api/readAnswersApi";
@@ -7,6 +7,7 @@ import { searchAnswersApi } from "../api/searchAnswersApi";
 import { deleteAnswerApi } from "../api/deleteAnswerApi";
 import { readQuestionsApi } from "../api/readQuestionsApi";
 import { readDiseasesApi } from "../api/readDiseasesApi";
+import { readDiseaseQuestionsApi } from "../api/readDiseaseQuestionsApi";
 
 import CreateAnswerModal from "../components/CreateAnswerModal";
 import EditAnswerModal from "../components/EditAnswerModal";
@@ -18,35 +19,29 @@ function pick(obj, keys, fallback = "") {
   return fallback;
 }
 
-/** กรองคำถามตามโรคที่เลือก */
-function questionsByDisease(allQuestions, diseaseId) {
-  if (!diseaseId) return [];
+function getQuestionId(q) {
+  return q?.question_id ?? q?.id ?? "";
+}
 
-  const target = String(diseaseId);
+function getQuestionText(q) {
+  return q?.question_text ?? q?.question ?? q?.text ?? "";
+}
 
-  const filtered = allQuestions.filter((q) => {
-    // ลองหาจากหลายฟิลด์ที่อาจมี disease_ids
-    const diseaseIdsRaw = 
-      q.disease_ids ?? 
-      q.diseaseIds ?? 
-      q.disease_id ?? 
-      q.diseaseId ?? 
-      "";
+// สร้าง map: disease_id -> Set(question_id)
+function buildDiseaseToQuestionIds(dqList) {
+  const map = new Map();
+  const arr = Array.isArray(dqList) ? dqList : [];
 
-    if (!diseaseIdsRaw) return false;
+  arr.forEach((row) => {
+    const did = String(row?.disease_id ?? row?.diseaseId ?? "").trim();
+    const qid = String(row?.question_id ?? row?.questionId ?? "").trim();
+    if (!did || !qid) return;
 
-    // แยก disease_ids ที่เป็น comma-separated
-    const diseaseArray = String(diseaseIdsRaw)
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    return diseaseArray.includes(target);
+    if (!map.has(did)) map.set(did, new Set());
+    map.get(did).add(qid);
   });
 
-  // คืนค่าเฉพาะคำถามที่กรองได้เท่านั้น
-  // ถ้ากรองไม่เจอ = แสดงว่าโรคนี้ยังไม่มีคำถาม หรือ backend ยังไม่ส่ง disease_ids
-  return filtered;
+  return map;
 }
 
 export default function AdminAnswersPage() {
@@ -56,6 +51,8 @@ export default function AdminAnswersPage() {
 
   const [diseases, setDiseases] = useState([]);
   const [allQuestions, setAllQuestions] = useState([]);
+  const [diseaseQuestions, setDiseaseQuestions] = useState([]);
+
   const [selectedDiseaseId, setSelectedDiseaseId] = useState("");
   const [selectedQuestionId, setSelectedQuestionId] = useState("");
 
@@ -67,44 +64,66 @@ export default function AdminAnswersPage() {
   const [openCreate, setOpenCreate] = useState(false);
   const [editAnswer, setEditAnswer] = useState(null);
 
-  // กรองคำถามตามโรคที่เลือก
-  const questionsForDisease = React.useMemo(
-    () => questionsByDisease(allQuestions, selectedDiseaseId),
-    [allQuestions, selectedDiseaseId]
-  );
-
-  const currentQuestion = React.useMemo(() => {
-    if (!selectedQuestionId) return null;
-    return (
-      allQuestions.find(
-        (q) => String(q.question_id ?? q.id) === String(selectedQuestionId)
-      ) || null
-    );
-  }, [allQuestions, selectedQuestionId]);
-
-  const currentQuestionText = currentQuestion
-    ? currentQuestion.question_text ||
-      currentQuestion.question ||
-      currentQuestion.text ||
-      ""
-    : "";
-
-  // โหลดโรคและคำถามตอนเริ่มต้น
+  // โหลดข้อมูลพื้นฐาน: โรค + คำถาม + pivot disease_questions
   useEffect(() => {
     (async () => {
       try {
-        const [ds, qs] = await Promise.all([
+        setError("");
+        const [ds, qs, dqs] = await Promise.all([
           readDiseasesApi(),
           readQuestionsApi(),
+          readDiseaseQuestionsApi(),
         ]);
+
         setDiseases(Array.isArray(ds) ? ds : []);
         setAllQuestions(Array.isArray(qs) ? qs : []);
+        setDiseaseQuestions(Array.isArray(dqs) ? dqs : []);
       } catch (err) {
         setError(err.message || "โหลดข้อมูลเริ่มต้นไม่สำเร็จ");
+        setDiseases([]);
+        setAllQuestions([]);
+        setDiseaseQuestions([]);
       }
     })();
   }, []);
 
+  const diseaseToQids = useMemo(
+    () => buildDiseaseToQuestionIds(diseaseQuestions),
+    [diseaseQuestions]
+  );
+
+  // ✅ ถ้ายังไม่เลือกโรค -> ไม่แสดงคำถาม
+  // ✅ ถ้าเลือกโรคแล้ว -> แสดงเฉพาะคำถามที่อยู่ใน disease_questions ของโรคนั้น
+  const questionsForDisease = useMemo(() => {
+    if (!selectedDiseaseId) return [];
+
+    const set = diseaseToQids.get(String(selectedDiseaseId));
+    if (!set || set.size === 0) return [];
+
+    const list = allQuestions
+      .filter((q) => set.has(String(getQuestionId(q))))
+      .sort((a, b) => {
+        const ao = Number(a.sort_order ?? a.order_no ?? 0);
+        const bo = Number(b.sort_order ?? b.order_no ?? 0);
+        if (ao !== bo) return ao - bo;
+        return Number(getQuestionId(a)) - Number(getQuestionId(b));
+      });
+
+    return list;
+  }, [selectedDiseaseId, allQuestions, diseaseToQids]);
+
+  const currentQuestion = useMemo(() => {
+    if (!selectedQuestionId) return null;
+    return (
+      allQuestions.find(
+        (q) => String(getQuestionId(q)) === String(selectedQuestionId)
+      ) || null
+    );
+  }, [allQuestions, selectedQuestionId]);
+
+  const currentQuestionText = getQuestionText(currentQuestion);
+
+  // โหลดคำตอบของคำถามที่เลือก
   async function loadAnswers(questionId = selectedQuestionId) {
     if (!questionId) {
       setAnswers([]);
@@ -124,12 +143,13 @@ export default function AdminAnswersPage() {
     }
   }
 
+  // เมื่อเลือกคำถาม → โหลดคำตอบ
   useEffect(() => {
     loadAnswers(selectedQuestionId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedQuestionId]);
 
-  // ค้นหาคำตอบ
+  // ค้นหาเฉพาะในคำถามที่เลือก
   useEffect(() => {
     let cancelled = false;
 
@@ -147,13 +167,9 @@ export default function AdminAnswersPage() {
           keyword: keyword.trim(),
           question_id: selectedQuestionId,
         });
-        if (!cancelled) {
-          setAnswers(Array.isArray(data) ? data : []);
-        }
+        if (!cancelled) setAnswers(Array.isArray(data) ? data : []);
       } catch (err) {
-        if (!cancelled) {
-          setError(err.message || "ค้นหาคำตอบไม่สำเร็จ");
-        }
+        if (!cancelled) setError(err.message || "ค้นหาคำตอบไม่สำเร็จ");
       } finally {
         if (!cancelled) setSearching(false);
       }
@@ -168,10 +184,7 @@ export default function AdminAnswersPage() {
 
   async function handleDelete(a) {
     const id = pick(a, ["choice_id", "answer_id", "id"]);
-    if (!id) {
-      alert("ไม่พบ ID ของคำตอบ");
-      return;
-    }
+    if (!id) return alert("ไม่พบ ID ของคำตอบ");
     if (!window.confirm("ยืนยันลบคำตอบนี้?")) return;
 
     setError("");
@@ -186,7 +199,7 @@ export default function AdminAnswersPage() {
   function handleDiseaseChange(e) {
     const value = e.target.value;
     setSelectedDiseaseId(value);
-    setSelectedQuestionId(""); // รีเซ็ตคำถามเมื่อเปลี่ยนโรค
+    setSelectedQuestionId("");
     setKeyword("");
     setAnswers([]);
   }
@@ -248,23 +261,24 @@ export default function AdminAnswersPage() {
           ))}
         </select>
 
-        {/* เลือกคำถามของโรค */}
+        {/* เลือกคำถาม: ถ้ายังไม่เลือกโรค -> disable */}
         <select
           value={selectedQuestionId}
           onChange={handleQuestionChange}
-          style={{ minWidth: 260 }}
+          style={{ minWidth: 360 }}
           disabled={!selectedDiseaseId}
         >
           <option value="">
-            {selectedDiseaseId
-              ? questionsForDisease.length > 0
-                ? "-- เลือกคำถามของโรคนี้ --"
-                : "-- ไม่มีคำถามสำหรับโรคนี้ --"
-              : "-- กรุณาเลือกโรคก่อน --"}
+            {!selectedDiseaseId
+              ? "-- กรุณาเลือกโรคก่อน --"
+              : questionsForDisease.length === 0
+              ? "-- โรคนี้ยังไม่มีคำถาม --"
+              : "-- เลือกคำถามของโรคนี้ --"}
           </option>
+
           {questionsForDisease.map((q) => {
-            const id = q.question_id ?? q.id;
-            const text = q.question_text || q.question || q.text || "";
+            const id = getQuestionId(q);
+            const text = getQuestionText(q);
             return (
               <option key={id} value={id}>
                 {text}
@@ -273,14 +287,6 @@ export default function AdminAnswersPage() {
           })}
         </select>
 
-        {/* แสดงจำนวนคำถามที่กรองได้ */}
-        {selectedDiseaseId && (
-          <span style={{ fontSize: 12, color: "#6b7280" }}>
-            ({questionsForDisease.length} คำถาม)
-          </span>
-        )}
-
-        {/* ค้นหาในคำตอบของคำถามที่เลือก */}
         <input
           placeholder="ค้นหาคำตอบ / ID"
           value={keyword}
@@ -298,6 +304,7 @@ export default function AdminAnswersPage() {
         >
           รีเซ็ต
         </button>
+
         <button
           className="btn"
           onClick={() => setOpenCreate(true)}
@@ -309,8 +316,10 @@ export default function AdminAnswersPage() {
 
       {/* ตารางคำตอบ */}
       <div className="card">
-        {!selectedQuestionId ? (
-          <div>กรุณาเลือกโรคและคำถามด้านบนก่อนเพื่อจัดการคำตอบ</div>
+        {!selectedDiseaseId ? (
+          <div>กรุณาเลือกโรคก่อน</div>
+        ) : !selectedQuestionId ? (
+          <div>กรุณาเลือกคำถามของโรคที่เลือกก่อนเพื่อจัดการคำตอบ</div>
         ) : loading ? (
           <div>กำลังโหลด...</div>
         ) : answers.length === 0 ? (
@@ -335,7 +344,7 @@ export default function AdminAnswersPage() {
                   "answer",
                   "text",
                 ]);
-                const score = pick(a, ["score", "points"], 0);
+                const score = pick(a, ["risk_score", "score", "points"], 0);
 
                 return (
                   <tr key={id}>
@@ -346,10 +355,7 @@ export default function AdminAnswersPage() {
                     <td style={{ whiteSpace: "pre-wrap" }}>{text}</td>
                     <td>{score}</td>
                     <td>
-                      <button
-                        className="btn xs"
-                        onClick={() => setEditAnswer(a)}
-                      >
+                      <button className="btn xs" onClick={() => setEditAnswer(a)}>
                         แก้ไข
                       </button>{" "}
                       <button
@@ -370,6 +376,7 @@ export default function AdminAnswersPage() {
       {openCreate && (
         <CreateAnswerModal
           question={currentQuestion}
+          diseaseId={selectedDiseaseId}
           onClose={() => setOpenCreate(false)}
           onSuccess={async () => {
             setOpenCreate(false);
@@ -382,6 +389,7 @@ export default function AdminAnswersPage() {
         <EditAnswerModal
           answer={editAnswer}
           question={currentQuestion}
+          diseaseId={selectedDiseaseId}
           onClose={() => setEditAnswer(null)}
           onSuccess={async () => {
             setEditAnswer(null);

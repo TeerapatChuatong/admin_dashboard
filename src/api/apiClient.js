@@ -9,6 +9,9 @@ export const SYMPTOMS_BASE = `${API_BASE}/symptoms`;
 export const QUESTIONS_BASE = `${SYMPTOMS_BASE}/questions`;
 export const ANSWERS_BASE = `${SYMPTOMS_BASE}/answers`;
 
+// ✅ เพิ่มสำหรับคะแนน
+export const SCORES_BASE = `${API_BASE}/scores`;
+
 // แปลง response → json พร้อมจัดการ error ให้เหมือนกันทุกที่
 export async function toJsonOrError(res, defaultMsg) {
   const data = await res.json().catch(() => ({}));

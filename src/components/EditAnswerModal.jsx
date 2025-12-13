@@ -1,50 +1,42 @@
-// src/components/EditAnswerModal.jsx
 import React, { useEffect, useState } from "react";
 import { updateAnswerApi } from "../api/updateAnswerApi";
-import { readQuestionsApi } from "../api/readQuestionsApi";
 
-export default function EditAnswerModal({ answer, onClose, onSuccess }) {
-  const [questionsMap, setQuestionsMap] = useState({});
+function pick(obj, keys, fallback = "") {
+  for (const k of keys) {
+    if (obj && obj[k] !== undefined && obj[k] !== null) return obj[k];
+  }
+  return fallback;
+}
+
+function getQuestionText(q) {
+  return q?.question_text ?? q?.question ?? q?.text ?? "";
+}
+
+export default function EditAnswerModal({ answer, question, diseaseId, onClose, onSuccess }) {
   const [form, setForm] = useState({
-    answer_id: null,
-    question_id: "",
-    answer_text: "",
-    score_value: 0,
+    choice_id: "",
+    choice_label: "",
+    score: 0,
   });
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // โหลดคำถามทั้งหมด → ทำ map จาก question_id → question_text
-  useEffect(() => {
-    async function loadQuestions() {
-      try {
-        const data = await readQuestionsApi();
-        const arr = Array.isArray(data) ? data : [];
-        const map = {};
-        arr.forEach((q) => {
-          const id = q.question_id ?? q.id;
-          const text =
-            q.question_text ?? q.question ?? q.text ?? `คำถาม ID ${id}`;
-          map[String(id)] = text;
-        });
-        setQuestionsMap(map);
-      } catch (err) {
-        console.error("โหลดคำถามไม่สำเร็จ", err);
-      }
-    }
-    loadQuestions();
-  }, []);
-
-  // โหลดค่าจาก answer ที่ส่งมา
   useEffect(() => {
     if (!answer) return;
+
+    const id = pick(answer, ["choice_id", "answer_id", "id"], "");
+    const label = pick(answer, ["choice_label", "answer_text", "answer", "text"], "");
+    const score = pick(answer, ["risk_score", "score", "points"], 0);
+
     setForm({
-      answer_id: answer.answer_id ?? answer.id,
-      question_id: answer.question_id,
-      answer_text: answer.answer_text ?? answer.text ?? "",
-      score_value: answer.score_value ?? answer.score ?? 0,
+      choice_id: id,
+      choice_label: String(label ?? ""),
+      score: Number(score) || 0,
     });
   }, [answer]);
+
+  if (!answer) return null;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -53,9 +45,14 @@ export default function EditAnswerModal({ answer, onClose, onSuccess }) {
 
     try {
       await updateAnswerApi({
-        ...form,
-        score_value: Number(form.score_value) || 0,
+        // ส่งให้ครบ เผื่อ backend ใช้
+        disease_id: diseaseId,
+        choice_id: form.choice_id,
+        choice_label: String(form.choice_label ?? "").trim(),
+        risk_score: Number(form.score) || 0,
+        score: Number(form.score) || 0,
       });
+
       onSuccess && onSuccess();
     } catch (err) {
       setError(err.message || "แก้ไขคำตอบไม่สำเร็จ");
@@ -64,50 +61,36 @@ export default function EditAnswerModal({ answer, onClose, onSuccess }) {
     }
   }
 
-  if (!answer) return null;
-
-  // ข้อความคำถามที่จะแสดง (อ่านจาก map)
-  const questionLabel =
-    questionsMap[String(form.question_id)] ||
-    `รหัสคำถาม: ${form.question_id}`;
-
   return (
     <div className="modal-backdrop">
       <div className="modal-card">
         <h2>แก้ไขคำตอบ</h2>
         {error && <div className="alert error">{error}</div>}
 
+        {/* แสดงคำถามที่เลือก */}
+        <div className="card" style={{ padding: 10, marginBottom: 10 }}>
+          <div style={{ fontSize: 12, color: "#6b7280" }}>คำถามที่เลือก</div>
+          <div style={{ whiteSpace: "pre-wrap" }}>
+            {getQuestionText(question) || "-"}
+          </div>
+        </div>
+
         <form className="form-grid" onSubmit={handleSubmit}>
-          {/* ✅ เปลี่ยนจาก รหัสคำถาม (question_id) → ข้อความคำถาม */}
           <label>
-            ข้อความคำถาม
-            <textarea value={questionLabel} readOnly rows={2} />
-          </label>
-
-          {/* ยังเก็บ question_id ไว้ส่งให้ backend เหมือนเดิม */}
-          <input type="hidden" value={form.question_id} />
-
-          <label>
-            ข้อความคำตอบ
-            <textarea
-              rows={3}
-              value={form.answer_text}
-              onChange={(e) =>
-                setForm({ ...form, answer_text: e.target.value })
-              }
+            คำตอบ
+            <input
+              value={form.choice_label}
+              onChange={(e) => setForm({ ...form, choice_label: e.target.value })}
               required
             />
           </label>
 
           <label>
-            คะแนน (score)
+            คะแนน
             <input
               type="number"
-              min="0"
-              value={form.score_value}
-              onChange={(e) =>
-                setForm({ ...form, score_value: e.target.value })
-              }
+              value={form.score}
+              onChange={(e) => setForm({ ...form, score: e.target.value })}
             />
           </label>
 
@@ -115,12 +98,7 @@ export default function EditAnswerModal({ answer, onClose, onSuccess }) {
             <button className="btn" type="submit" disabled={saving}>
               {saving ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
             </button>
-            <button
-              className="btn ghost"
-              type="button"
-              onClick={onClose}
-              style={{ marginLeft: 4 }}
-            >
+            <button className="btn ghost" type="button" onClick={onClose}>
               ยกเลิก
             </button>
           </div>
