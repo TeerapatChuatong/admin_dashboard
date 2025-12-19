@@ -38,7 +38,7 @@ async function fetchScoresMap({ disease_id, question_id }) {
     disease_id
   )}&question_id=${encodeURIComponent(question_id)}`;
 
-  const res = await fetch(url);
+  const res = await fetch(url, { credentials: "include" });
   const data = await toJsonOrError(res, "โหลดคะแนนไม่สำเร็จ");
   const list = extractList(data);
 
@@ -51,7 +51,13 @@ async function fetchScoresMap({ disease_id, question_id }) {
   return map;
 }
 
-export default function EditAnswerModal({ answer, question, diseaseId, onClose, onSuccess }) {
+export default function EditAnswerModal({
+  answer,
+  question,
+  diseaseId,
+  onClose,
+  onSuccess,
+}) {
   const questionId = useMemo(() => String(qId(question) || ""), [question]);
   const questionText = useMemo(() => qText(question), [question]);
   const questionType = useMemo(() => qType(question), [question]);
@@ -83,6 +89,20 @@ export default function EditAnswerModal({ answer, question, diseaseId, onClose, 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // ✅ กันค่าค้างเวลาเปิด modal แก้ไขคนละ answer ต่อๆ กัน
+  useEffect(() => {
+    setLabel(String(answer?.choice_label ?? answer?.answer_text ?? "").trim());
+    const v =
+      answer?.risk_score ??
+      answer?.score_value ??
+      answer?.score ??
+      answer?.points ??
+      0;
+    setScore(Number(v) || 0);
+    setScoreId(answer?._score_id ?? null);
+  }, [answer]);
+
+  // ✅ หา score_id ของ choice นี้ (สำหรับ update แทน create)
   useEffect(() => {
     (async () => {
       try {
@@ -117,18 +137,9 @@ export default function EditAnswerModal({ answer, question, diseaseId, onClose, 
     e.preventDefault();
     setError("");
 
-    if (!choiceId) {
-      setError("ไม่พบ choice_id");
-      return;
-    }
-    if (!questionId) {
-      setError("ไม่พบ question_id");
-      return;
-    }
-    if (!diseaseId) {
-      setError("ไม่พบ disease_id (กรุณาเลือกโรคก่อน)");
-      return;
-    }
+    if (!choiceId) return setError("ไม่พบ choice_id");
+    if (!questionId) return setError("ไม่พบ question_id");
+    if (!diseaseId) return setError("ไม่พบ disease_id (กรุณาเลือกโรคก่อน)");
 
     setLoading(true);
     try {
@@ -170,7 +181,14 @@ export default function EditAnswerModal({ answer, question, diseaseId, onClose, 
 
         <form onSubmit={handleSubmit}>
           {questionType === "yes_no" && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                flexWrap: "wrap",
+                marginBottom: 10,
+              }}
+            >
               <button type="button" className="btn ghost" onClick={() => setLabel("ใช่")}>
                 ใช่
               </button>
@@ -183,12 +201,17 @@ export default function EditAnswerModal({ answer, question, diseaseId, onClose, 
               <button type="button" className="btn ghost" onClick={() => setLabel("ไม่พบ")}>
                 ไม่พบ
               </button>
-              {/* ✅ เพิ่ม */}
               <button type="button" className="btn ghost" onClick={() => setLabel("เคยใช้")}>
                 เคยใช้
               </button>
               <button type="button" className="btn ghost" onClick={() => setLabel("ไม่เคยใช้")}>
                 ไม่เคยใช้
+              </button>
+              <button type="button" className="btn ghost" onClick={() => setLabel("เคยตัด")}>
+                เคยตัด
+              </button>
+              <button type="button" className="btn ghost" onClick={() => setLabel("ไม่เคยตัด")}>
+                ไม่เคยตัด
               </button>
             </div>
           )}
@@ -208,7 +231,14 @@ export default function EditAnswerModal({ answer, question, diseaseId, onClose, 
             style={{ width: "100%" }}
           />
 
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 8,
+              marginTop: 16,
+            }}
+          >
             <button type="button" className="btn ghost" onClick={onClose} disabled={loading}>
               ยกเลิก
             </button>

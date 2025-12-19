@@ -3,8 +3,8 @@ import { createQuestionApi } from "../api/createQuestionApi";
 import { readDiseasesApi } from "../api/readDiseasesApi";
 
 const QUESTION_TYPES = [
-  { value: "yes_no",  label: "ใช่ / ไม่ใช่" },
-  { value: "multi",   label: "ตัวเลือก" },
+  { value: "yes_no", label: "ใช่ / ไม่ใช่" },
+  { value: "multi", label: "ตัวเลือก" },
   { value: "numeric", label: "ตัวเลข" },
 ];
 
@@ -14,6 +14,7 @@ export default function CreateQuestionModal({ onClose, onSuccess }) {
     disease_id: "",
     question_text: "",
     question_type: "yes_no",
+    max_score: 5,          // ✅ เพิ่ม
     sort_order: 0,
     is_active: 1,
   });
@@ -34,7 +35,9 @@ export default function CreateQuestionModal({ onClose, onSuccess }) {
     try {
       await createQuestionApi({
         ...form,
-        order_no: Number(form.sort_order) || 0, // backend ใช้ order_no
+        max_score: Number(form.max_score),                 // ✅ ส่งไป backend
+        sort_order: Number(form.sort_order) || 0,
+        order_no: Number(form.sort_order) || 0,            // เผื่อ backend เก่า
       });
       onSuccess && onSuccess();
     } catch (err) {
@@ -55,13 +58,11 @@ export default function CreateQuestionModal({ onClose, onSuccess }) {
             โรค / กลุ่มคำถาม
             <select
               value={form.disease_id}
-              onChange={(e) =>
-                setForm({ ...form, disease_id: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, disease_id: e.target.value })}
               required
             >
               <option value="" disabled>
-                -- เลือกโรค (ไม่บังคับ) --
+                -- เลือกโรค --
               </option>
               {diseases.map((d) => (
                 <option key={d.disease_id} value={d.disease_id}>
@@ -80,9 +81,7 @@ export default function CreateQuestionModal({ onClose, onSuccess }) {
             ประเภทคำถาม
             <select
               value={form.question_type}
-              onChange={(e) =>
-                setForm({ ...form, question_type: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, question_type: e.target.value })}
             >
               {QUESTION_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>
@@ -92,14 +91,24 @@ export default function CreateQuestionModal({ onClose, onSuccess }) {
             </select>
           </label>
 
+          {/* ✅ เพิ่มคะแนนสูงสุด */}
+          <label>
+            คะแนนสูงสุดของคำถาม
+            <input
+              type="number"
+              min="1"
+              value={form.max_score}
+              onChange={(e) => setForm({ ...form, max_score: e.target.value })}
+              required
+            />
+          </label>
+
           <label>
             ข้อความคำถาม
             <textarea
               rows={3}
               value={form.question_text}
-              onChange={(e) =>
-                setForm({ ...form, question_text: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, question_text: e.target.value })}
               required
             />
           </label>
@@ -110,9 +119,7 @@ export default function CreateQuestionModal({ onClose, onSuccess }) {
               type="number"
               min="0"
               value={form.sort_order}
-              onChange={(e) =>
-                setForm({ ...form, sort_order: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
             />
           </label>
 
@@ -148,11 +155,7 @@ export default function CreateQuestionModal({ onClose, onSuccess }) {
             <button className="btn" type="submit" disabled={saving}>
               {saving ? "กำลังบันทึก..." : "เพิ่มคำถาม"}
             </button>
-            <button
-              className="btn ghost"
-              type="button"
-              onClick={onClose}
-            >
+            <button className="btn ghost" type="button" onClick={onClose}>
               ยกเลิก
             </button>
           </div>

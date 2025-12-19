@@ -7,7 +7,10 @@ import AdminHomePage from "./pages/AdminHomePage";
 import AdminUsersPage from "./pages/AdminUsersPage";
 import AdminQuestionsPage from "./pages/AdminQuestionsPage";
 import AdminAnswersPage from "./pages/AdminAnswersPage";
-import AdminDiseasesPage from "./pages/AdminDiseasesPage"; // ✅ เพิ่ม
+import AdminTreatmentsPage from "./pages/AdminTreatmentsPage";
+
+// ✅ เพิ่มหน้านี้ (ต้องมีไฟล์จริง src/pages/AdminDiseasesPage.jsx)
+import AdminDiseasesPage from "./pages/AdminDiseasesPage";
 
 import RequireAdmin from "./components/RequireAdmin";
 
@@ -16,7 +19,6 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
 
-      {/* ✅ หน้าเมนูแอดมิน */}
       <Route
         path="/admin"
         element={
@@ -53,7 +55,16 @@ export default function App() {
         }
       />
 
-      {/* ✅ เพิ่ม Route นี้ ไม่งั้นจะโดน path="*" ส่งไป /login */}
+      <Route
+        path="/admin/treatments"
+        element={
+          <RequireAdmin>
+            <AdminTreatmentsPage />
+          </RequireAdmin>
+        }
+      />
+
+      {/* ✅ สำคัญ: เพิ่ม route คำอธิบายโรค */}
       <Route
         path="/admin/diseases"
         element={

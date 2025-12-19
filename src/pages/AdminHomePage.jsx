@@ -91,7 +91,28 @@ export default function AdminHomePage() {
             </div>
           </Link>
 
-          {/* ✅ เพิ่มเมนูคำอธิบายโรค */}
+          {/* ✅ เมนูใหม่: คำแนะนำการรักษา */}
+          <Link
+            to="/admin/treatments"
+            className="card"
+            style={{
+              textDecoration: "none",
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              border: "1px solid #f3f4f6",
+            }}
+          >
+            <h2 style={{ margin: 0 }}>จัดการคำแนะนำการรักษา</h2>
+            <span style={{ fontSize: 13, color: "#6b7280" }}>
+              เพิ่ม/แก้ไขคำแนะนำ + ตั้งค่า min_score/days ตามระดับความรุนแรง
+            </span>
+            <div style={{ marginTop: 8 }}>
+              <button className="btn xs">ไปหน้าคำแนะนำ</button>
+            </div>
+          </Link>
+
+          {/* ✅ เมนูคำอธิบายโรค */}
           <Link
             to="/admin/diseases"
             className="card"

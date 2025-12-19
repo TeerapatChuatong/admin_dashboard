@@ -57,6 +57,20 @@ async function fetchScoresMap({ disease_id, question_id }) {
   return map;
 }
 
+function defaultsByMode(mode) {
+  switch (mode) {
+    case "found":
+      return ["พบ", "ไม่พบ"];
+    case "used":
+      return ["เคยใช้", "ไม่เคยใช้"];
+    case "cut":
+      return ["เคยตัด", "ไม่เคยตัด"];
+    case "yesno":
+    default:
+      return ["ใช่", "ไม่ใช่"];
+  }
+}
+
 export default function CreateAnswerModal({ question, diseaseId, onClose, onSuccess }) {
   const questionId = useMemo(() => String(qId(question) || ""), [question]);
   const questionText = useMemo(() => qText(question), [question]);
@@ -65,53 +79,85 @@ export default function CreateAnswerModal({ question, diseaseId, onClose, onSucc
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // โหลด choices เดิม (ใช้สำหรับ yes_no เพื่อไม่สร้างซ้ำ + toggle)
   const [existingChoices, setExistingChoices] = useState([]);
 
-  // yes_no settings
-  const [yesNoMode, setYesNoMode] = useState("yesno"); // yesno | found | used
+  // ✅ ยังมี dropdown แต่ช่องคำตอบพิมพ์ได้
+  const [yesNoMode, setYesNoMode] = useState("yesno"); // yesno | found | used | cut
+  const [opt1Id, setOpt1Id] = useState(null);
+  const [opt2Id, setOpt2Id] = useState(null);
+
+  const [opt1Label, setOpt1Label] = useState("ใช่");
+  const [opt2Label, setOpt2Label] = useState("ไม่ใช่");
+
   const [yesScore, setYesScore] = useState(0);
   const [noScore, setNoScore] = useState(0);
 
   // multi/numeric rows
   const [rows, setRows] = useState([{ label: "", score: 0 }]);
 
-  const getYesLabel = () => {
-    if (yesNoMode === "found") return "พบ";
-    if (yesNoMode === "used") return "เคยใช้";
-    return "ใช่";
-  };
-
-  const getNoLabel = () => {
-    if (yesNoMode === "found") return "ไม่พบ";
-    if (yesNoMode === "used") return "ไม่เคยใช้";
-    return "ไม่ใช่";
-  };
-
   useEffect(() => {
     (async () => {
       try {
         if (!questionId) return;
+
         const data = await readAnswersApi(questionId);
         const list = Array.isArray(data) ? data : extractList(data);
         setExistingChoices(list);
 
-        // auto detect โหมด ถ้ามี label อยู่แล้ว
-        const hasFound =
-          list.some((c) => String(c.choice_label ?? "").trim() === "พบ") ||
-          list.some((c) => String(c.choice_label ?? "").trim() === "ไม่พบ");
+        // ✅ ถ้ามี choice เดิม -> ใช้ 2 ตัวแรก (ตาม choice_id) มาเป็นค่าเริ่มต้น
+        const getCid = (c) => c?.choice_id ?? c?.id ?? c?.choiceId ?? null;
+        const sorted = [...list].sort(
+          (a, b) => Number(getCid(a) || 0) - Number(getCid(b) || 0)
+        );
 
-        const hasUsed =
-          list.some((c) => String(c.choice_label ?? "").trim() === "เคยใช้") ||
-          list.some((c) => String(c.choice_label ?? "").trim() === "ไม่เคยใช้");
+        if (sorted[0]) {
+          setOpt1Id(getCid(sorted[0]));
+          setOpt1Label(String(sorted[0].choice_label ?? "").trim() || "ใช่");
+        } else {
+          const [a] = defaultsByMode(yesNoMode);
+          setOpt1Id(null);
+          setOpt1Label(a);
+        }
 
-        if (hasUsed) setYesNoMode("used");
-        else if (hasFound) setYesNoMode("found");
+        if (sorted[1]) {
+          setOpt2Id(getCid(sorted[1]));
+          setOpt2Label(String(sorted[1].choice_label ?? "").trim() || "ไม่ใช่");
+        } else {
+          const [, b] = defaultsByMode(yesNoMode);
+          setOpt2Id(null);
+          setOpt2Label(b);
+        }
+
+        // โหลดคะแนนเดิมของ 2 choice (ถ้ามี)
+        if (diseaseId && (sorted[0] || sorted[1])) {
+          const scoreMap = await fetchScoresMap({
+            disease_id: diseaseId,
+            question_id: questionId,
+          });
+
+          if (sorted[0]) {
+            const row = scoreMap.get(String(getCid(sorted[0])));
+            if (row) setYesScore(Number(row.risk_score ?? row.score_value ?? 0) || 0);
+          }
+          if (sorted[1]) {
+            const row = scoreMap.get(String(getCid(sorted[1])));
+            if (row) setNoScore(Number(row.risk_score ?? row.score_value ?? 0) || 0);
+          }
+        }
       } catch {
         // ไม่ต้อง block UI
       }
     })();
-  }, [questionId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questionId, diseaseId]);
+
+  function onChangeMode(mode) {
+    setYesNoMode(mode);
+    const [a, b] = defaultsByMode(mode);
+    // ✅ เปลี่ยนเป็นค่าตามโหมด แต่ยังพิมพ์แก้ได้
+    setOpt1Label(a);
+    setOpt2Label(b);
+  }
 
   function addRow() {
     setRows((prev) => [...prev, { label: "", score: 0 }]);
@@ -169,51 +215,63 @@ export default function CreateAnswerModal({ question, diseaseId, onClose, onSucc
   }
 
   async function saveYesNo() {
-    const yesLabel = getYesLabel();
-    const noLabel = getNoLabel();
+    const label1 = String(opt1Label ?? "").trim();
+    const label2 = String(opt2Label ?? "").trim();
 
-    // ✅ reuse choice เดิม (ไม่สร้างซ้ำ) แล้วค่อย update label ให้ตรงโหมด
-    const anyYes = existingChoices.find((c) =>
-      ["ใช่", "พบ", "เคยใช้"].includes(String(c.choice_label ?? "").trim())
-    );
-    const anyNo = existingChoices.find((c) =>
-      ["ไม่ใช่", "ไม่พบ", "ไม่เคยใช้"].includes(String(c.choice_label ?? "").trim())
-    );
+    if (!label1 || !label2) throw new Error("กรุณากรอกคำตอบทั้ง 2 ช่อง");
+    if (label1 === label2) throw new Error("คำตอบทั้ง 2 ช่องต้องไม่ซ้ำกัน");
 
-    let yesChoice = anyYes;
-    let noChoice = anyNo;
+    const getCid = (c) => c?.choice_id ?? c?.id ?? c?.choiceId ?? null;
 
-    if (!yesChoice) yesChoice = await ensureChoice({ choice_label: yesLabel });
-    if (!noChoice) noChoice = await ensureChoice({ choice_label: noLabel });
+    // หา choice ตาม id ก่อน ถ้าไม่เจอค่อยหาโดย label
+    let c1 =
+      (opt1Id ? existingChoices.find((c) => String(getCid(c)) === String(opt1Id)) : null) ||
+      existingChoices.find((c) => String(c.choice_label ?? "").trim() === label1) ||
+      null;
 
-    // ถ้า label ไม่ตรงโหมดที่เลือก → update label (toggle โหมดได้)
-    if (String(yesChoice.choice_label ?? "").trim() !== yesLabel) {
+    let c2 =
+      (opt2Id ? existingChoices.find((c) => String(getCid(c)) === String(opt2Id)) : null) ||
+      existingChoices.find((c) => String(c.choice_label ?? "").trim() === label2) ||
+      null;
+
+    if (!c1) c1 = await ensureChoice({ choice_label: label1 });
+    if (!c2) c2 = await ensureChoice({ choice_label: label2 });
+
+    const cid1 = getCid(c1);
+    const cid2 = getCid(c2);
+
+    // update label ให้ตรงกับที่พิมพ์
+    if (String(c1.choice_label ?? "").trim() !== label1) {
       await updateAnswerApi({
-        choice_id: yesChoice.choice_id,
+        choice_id: Number(cid1),
         question_id: Number(questionId),
-        choice_label: yesLabel,
+        choice_label: label1,
       });
     }
-    if (String(noChoice.choice_label ?? "").trim() !== noLabel) {
+
+    if (String(c2.choice_label ?? "").trim() !== label2) {
       await updateAnswerApi({
-        choice_id: noChoice.choice_id,
+        choice_id: Number(cid2),
         question_id: Number(questionId),
-        choice_label: noLabel,
+        choice_label: label2,
       });
     }
 
-    // ✅ upsert score ลงตาราง scores
+    setOpt1Id(cid1);
+    setOpt2Id(cid2);
+
+    // upsert score
     await upsertScore({
       disease_id: Number(diseaseId),
       question_id: Number(questionId),
-      choice_id: Number(yesChoice.choice_id),
+      choice_id: Number(cid1),
       risk_score: Number(yesScore) || 0,
     });
 
     await upsertScore({
       disease_id: Number(diseaseId),
       question_id: Number(questionId),
-      choice_id: Number(noChoice.choice_id),
+      choice_id: Number(cid2),
       risk_score: Number(noScore) || 0,
     });
   }
@@ -226,9 +284,7 @@ export default function CreateAnswerModal({ question, diseaseId, onClose, onSucc
       }))
       .filter((r) => r.label.length > 0);
 
-    if (items.length === 0) {
-      throw new Error("กรุณากรอกคำตอบอย่างน้อย 1 ข้อ");
-    }
+    if (items.length === 0) throw new Error("กรุณากรอกคำตอบอย่างน้อย 1 ข้อ");
 
     for (const it of items) {
       const created = await createAnswerApi({
@@ -258,22 +314,14 @@ export default function CreateAnswerModal({ question, diseaseId, onClose, onSucc
     e.preventDefault();
     setError("");
 
-    if (!questionId) {
-      setError("ไม่พบ question_id");
-      return;
-    }
-    if (!diseaseId) {
-      setError("ไม่พบ disease_id (กรุณาเลือกโรคก่อน)");
-      return;
-    }
+    if (!questionId) return setError("ไม่พบ question_id");
+    if (!diseaseId) return setError("ไม่พบ disease_id (กรุณาเลือกโรคก่อน)");
 
     setLoading(true);
     try {
-      if (questionType === "yes_no") {
-        await saveYesNo();
-      } else {
-        await saveMultiOrNumeric();
-      }
+      if (questionType === "yes_no") await saveYesNo();
+      else await saveMultiOrNumeric();
+
       onSuccess?.();
     } catch (err) {
       setError(err?.message || "บันทึกไม่สำเร็จ");
@@ -305,18 +353,24 @@ export default function CreateAnswerModal({ question, diseaseId, onClose, onSucc
               </label>
               <select
                 value={yesNoMode}
-                onChange={(e) => setYesNoMode(e.target.value)}
+                onChange={(e) => onChangeMode(e.target.value)}
                 style={{ width: "100%", marginBottom: 10 }}
               >
                 <option value="yesno">ใช่ / ไม่ใช่</option>
                 <option value="found">พบ / ไม่พบ</option>
                 <option value="used">เคยใช้ / ไม่เคยใช้</option>
+                <option value="cut">เคยตัด / ไม่เคยตัด</option>
               </select>
 
+              {/* ✅ พิมพ์ได้ทั้ง 2 ช่อง */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 10 }}>
                 <div>
                   <label>คำตอบ</label>
-                  <input value={getYesLabel()} disabled style={{ width: "100%" }} />
+                  <input
+                    value={opt1Label}
+                    onChange={(e) => setOpt1Label(e.target.value)}
+                    style={{ width: "100%" }}
+                  />
                 </div>
                 <div>
                   <label>คะแนน</label>
@@ -329,9 +383,15 @@ export default function CreateAnswerModal({ question, diseaseId, onClose, onSucc
                 </div>
 
                 <div>
-                  <input value={getNoLabel()} disabled style={{ width: "100%" }} />
+                  <label>คำตอบ</label>
+                  <input
+                    value={opt2Label}
+                    onChange={(e) => setOpt2Label(e.target.value)}
+                    style={{ width: "100%" }}
+                  />
                 </div>
                 <div>
+                  <label>คะแนน</label>
                   <input
                     type="number"
                     value={noScore}

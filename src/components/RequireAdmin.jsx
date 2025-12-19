@@ -4,14 +4,21 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function RequireAdmin({ children }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="page">
+        <div className="card">กำลังตรวจสอบการเข้าสู่ระบบ...</div>
+      </div>
+    );
+  }
 
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  const isAdmin =
-    user.role === "admin" || user.role === "super_admin";
+  const isAdmin = user.role === "admin" || user.role === "super_admin";
 
   if (!isAdmin) {
     return (

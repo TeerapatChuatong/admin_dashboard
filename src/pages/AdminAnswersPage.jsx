@@ -4,16 +4,10 @@ import { useAuth } from "../context/AuthContext";
 
 import { API_BASE, toJsonOrError } from "../api/apiClient";
 
-import { readAnswersApi } from "../api/readAnswersApi";
-import { searchAnswersApi } from "../api/searchAnswersApi";
-import { deleteAnswerApi } from "../api/deleteAnswerApi";
-import { readQuestionsApi } from "../api/readQuestionsApi";
-import { readDiseasesApi } from "../api/readDiseasesApi";
-import { readDiseaseQuestionsApi } from "../api/readDiseaseQuestionsApi";
-
 import CreateAnswerModal from "../components/CreateAnswerModal";
 import EditAnswerModal from "../components/EditAnswerModal";
 
+// ---------------- helpers ----------------
 function pick(obj, keys, fallback = "") {
   for (const k of keys) {
     if (obj && obj[k] !== undefined && obj[k] !== null) return obj[k];
@@ -29,16 +23,88 @@ function extractList(data) {
   return [];
 }
 
+function getAuthToken() {
+  try {
+    const u = JSON.parse(localStorage.getItem("auth_user") || "null");
+    return u?.token ? String(u.token) : "";
+  } catch {
+    return "";
+  }
+}
+
+async function authFetch(url, options = {}) {
+  const token = getAuthToken();
+  const headers = new Headers(options.headers || {});
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  if (!headers.has("Content-Type") && options.body && !(options.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  return fetch(url, {
+    credentials: "include",
+    ...options,
+    headers,
+  });
+}
+
+async function apiGet(url, errMsg) {
+  const res = await authFetch(url, { method: "GET" });
+  return toJsonOrError(res, errMsg);
+}
+
+async function apiDelete(url, errMsg) {
+  const res = await authFetch(url, { method: "DELETE" });
+  return toJsonOrError(res, errMsg);
+}
+
+async function readDiseases() {
+  const data = await apiGet(`${API_BASE}/diseases/read_diseases.php`, "โหลดโรคไม่สำเร็จ");
+  return extractList(data);
+}
+
+async function readQuestions() {
+  const data = await apiGet(`${API_BASE}/questions/read_questions.php`, "โหลดคำถามไม่สำเร็จ");
+  return extractList(data);
+}
+
+async function readDiseaseQuestions() {
+  const data = await apiGet(
+    `${API_BASE}/disease_questions/read_disease_questions.php`,
+    "โหลดคำถามของโรคไม่สำเร็จ"
+  );
+  return extractList(data);
+}
+
+async function readChoices(question_id) {
+  const url = `${API_BASE}/choices/read_choices.php?question_id=${encodeURIComponent(question_id)}`;
+  const data = await apiGet(url, "โหลดคำตอบไม่สำเร็จ");
+  return extractList(data);
+}
+
+async function searchChoices({ keyword, question_id }) {
+  const url = `${API_BASE}/choices/search_choices.php?q=${encodeURIComponent(
+    keyword
+  )}&question_id=${encodeURIComponent(question_id)}`;
+  const data = await apiGet(url, "ค้นหาคำตอบไม่สำเร็จ");
+  return extractList(data);
+}
+
+async function deleteChoice(choice_id) {
+  const url = `${API_BASE}/choices/delete_choices.php?choice_id=${encodeURIComponent(choice_id)}`;
+  return apiDelete(url, "ลบคำตอบไม่สำเร็จ");
+}
+
 async function fetchScoresMap({ disease_id, question_id }) {
-  // ✅ ดึงคะแนนจาก scores เพื่อ merge เข้า choices (แก้ปัญหาแสดง 0)
+  // ✅ ต้องส่ง credentials + Bearer token ไม่งั้นจะเจอ Please login first
   if (!disease_id || !question_id) return new Map();
 
   const url = `${API_BASE}/scores/read_scores.php?disease_id=${encodeURIComponent(
     disease_id
   )}&question_id=${encodeURIComponent(question_id)}`;
 
-  const res = await fetch(url);
-  const data = await toJsonOrError(res, "โหลดคะแนนไม่สำเร็จ");
+  const data = await apiGet(url, "โหลดคะแนนไม่สำเร็จ");
   const list = extractList(data);
 
   const map = new Map(); // choice_id -> scoreRow
@@ -54,6 +120,7 @@ function qText(q) {
   return String(q?.question_text ?? q?.question ?? q?.text ?? "");
 }
 
+// ---------------- page ----------------
 export default function AdminAnswersPage() {
   const { user, logout } = useAuth();
 
@@ -86,11 +153,8 @@ export default function AdminAnswersPage() {
         .filter(Boolean)
     );
 
-    const filtered = allQuestions.filter((q) =>
-      qIds.has(String(q.question_id ?? q.id))
-    );
+    const filtered = allQuestions.filter((q) => qIds.has(String(q.question_id ?? q.id)));
 
-    // sort ตาม sort_order ถ้ามี
     filtered.sort((a, b) => {
       const ao = Number(a.sort_order ?? a.order_index ?? 0);
       const bo = Number(b.sort_order ?? b.order_index ?? 0);
@@ -104,9 +168,8 @@ export default function AdminAnswersPage() {
   const currentQuestion = useMemo(() => {
     if (!selectedQuestionId) return null;
     return (
-      allQuestions.find(
-        (q) => String(q.question_id ?? q.id) === String(selectedQuestionId)
-      ) || null
+      allQuestions.find((q) => String(q.question_id ?? q.id) === String(selectedQuestionId)) ||
+      null
     );
   }, [allQuestions, selectedQuestionId]);
 
@@ -116,13 +179,13 @@ export default function AdminAnswersPage() {
     (async () => {
       try {
         const [ds, qs, dqs] = await Promise.all([
-          readDiseasesApi(),
-          readQuestionsApi(),
-          readDiseaseQuestionsApi(),
+          readDiseases(),
+          readQuestions(),
+          readDiseaseQuestions(),
         ]);
-        setDiseases(Array.isArray(ds) ? ds : extractList(ds));
-        setAllQuestions(Array.isArray(qs) ? qs : extractList(qs));
-        setDiseaseQuestions(Array.isArray(dqs) ? dqs : extractList(dqs));
+        setDiseases(ds);
+        setAllQuestions(qs);
+        setDiseaseQuestions(dqs);
       } catch (err) {
         setError(err?.message || "โหลดข้อมูลเริ่มต้นไม่สำเร็จ");
       }
@@ -140,8 +203,7 @@ export default function AdminAnswersPage() {
 
     try {
       // 1) อ่าน choices ของคำถาม
-      const choices = await readAnswersApi(questionId);
-      const list = Array.isArray(choices) ? choices : extractList(choices);
+      const list = await readChoices(questionId);
 
       // 2) อ่าน scores แล้ว merge ใส่แต่ละ choice (fix score 0)
       const scoreMap = await fetchScoresMap({
@@ -185,7 +247,6 @@ export default function AdminAnswersPage() {
 
   useEffect(() => {
     let cancelled = false;
-
     if (!selectedQuestionId || !selectedDiseaseId) return;
 
     const kw = String(keyword ?? "").trim();
@@ -197,14 +258,8 @@ export default function AdminAnswersPage() {
     setSearching(true);
     const timer = setTimeout(async () => {
       try {
-        const data = await searchAnswersApi({
-          keyword: kw,
-          question_id: selectedQuestionId,
-        });
+        const list = await searchChoices({ keyword: kw, question_id: selectedQuestionId });
 
-        const list = Array.isArray(data) ? data : extractList(data);
-
-        // merge scores อีกครั้ง (เพราะ search ก็ต้องโชว์คะแนน)
         const scoreMap = await fetchScoresMap({
           disease_id: selectedDiseaseId,
           question_id: selectedQuestionId,
@@ -213,6 +268,7 @@ export default function AdminAnswersPage() {
         const merged = list.map((c) => {
           const cid = String(c.choice_id ?? c.id ?? "");
           const s = scoreMap.get(cid);
+
           const risk_score =
             s?.risk_score ??
             s?.score_value ??
@@ -246,15 +302,12 @@ export default function AdminAnswersPage() {
 
   async function handleDelete(a) {
     const id = pick(a, ["choice_id", "answer_id", "id"]);
-    if (!id) {
-      alert("ไม่พบ ID ของคำตอบ");
-      return;
-    }
+    if (!id) return alert("ไม่พบ ID ของคำตอบ");
     if (!window.confirm("ยืนยันลบคำตอบนี้?")) return;
 
     setError("");
     try {
-      await deleteAnswerApi(id);
+      await deleteChoice(id);
       await loadAnswers();
     } catch (err) {
       setError(err?.message || "ลบคำตอบไม่สำเร็จ");
@@ -299,19 +352,10 @@ export default function AdminAnswersPage() {
 
       <div
         className="card"
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 8,
-          alignItems: "center",
-        }}
+        style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}
       >
         {/* เลือกโรค */}
-        <select
-          value={selectedDiseaseId}
-          onChange={handleDiseaseChange}
-          style={{ minWidth: 220 }}
-        >
+        <select value={selectedDiseaseId} onChange={handleDiseaseChange} style={{ minWidth: 220 }}>
           <option value="">-- เลือกโรค --</option>
           {diseases.map((d) => (
             <option key={d.disease_id} value={d.disease_id}>
@@ -319,6 +363,7 @@ export default function AdminAnswersPage() {
                 d.disease_en ||
                 d.name_th ||
                 d.name_en ||
+                d.disease_name ||
                 d.disease_slug ||
                 d.disease_id}
             </option>
@@ -359,15 +404,9 @@ export default function AdminAnswersPage() {
           disabled={!selectedQuestionId}
         />
 
-        {searching && (
-          <span style={{ fontSize: 12, color: "#6b7280" }}>กำลังค้นหา...</span>
-        )}
+        {searching && <span style={{ fontSize: 12, color: "#6b7280" }}>กำลังค้นหา...</span>}
 
-        <button
-          className="btn ghost"
-          onClick={() => setKeyword("")}
-          disabled={!selectedQuestionId}
-        >
+        <button className="btn ghost" onClick={() => setKeyword("")} disabled={!selectedQuestionId}>
           รีเซ็ต
         </button>
 

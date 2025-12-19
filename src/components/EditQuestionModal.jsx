@@ -84,7 +84,7 @@ export default function EditQuestionModal({ question, onClose, onSuccess }) {
               required
             >
               <option value="" disabled>
-                -- เลือกโรค (ไม่บังคับ) --
+                -- เลือกโรค --
               </option>
               {diseases.map((d) => (
                 <option key={d.disease_id} value={d.disease_id}>

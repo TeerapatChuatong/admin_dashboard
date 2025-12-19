@@ -7,9 +7,10 @@ const API_BASE =
   import.meta.env.VITE_API_URL ||
   "http://localhost/CRUD/api";
 
-// (ไม่บังคับ) ใช้สำหรับพรีวิวรูปที่เป็น path เช่น uploads/disease/xxx.jpg
-// ตัวอย่าง: VITE_BACKEND_ORIGIN=http://localhost/CRUD
-const BACKEND_ORIGIN = import.meta.env.VITE_BACKEND_ORIGIN || "";
+// ถ้าไม่ตั้ง VITE_BACKEND_ORIGIN จะเดาจาก API_BASE ให้เอง (ตัด /api ออก)
+const BACKEND_ORIGIN =
+  import.meta.env.VITE_BACKEND_ORIGIN ||
+  String(API_BASE).replace(/\/api\/?$/i, "");
 
 export default function AdminDiseasesPage() {
   const [loading, setLoading] = useState(true);
@@ -28,20 +29,27 @@ export default function AdminDiseasesPage() {
     disease_th: "",
     description: "",
     causes: "",
-    symptoms: "",
+    // ✅ ใช้ symptom เป็นหลัก แต่จะอ่าน/ส่ง symptoms เผื่อแบ็คเอนด์/DB บางเวอร์ชัน
+    symptom: "",
     image_url: "",
   });
 
-  // ✅ สำหรับอัปโหลดรูปจากเครื่อง
+  // ✅ อัปโหลดรูปจากเครื่อง
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
+  const [imgLoadErr, setImgLoadErr] = useState("");
   const fileRef = useRef(null);
 
   function buildImgSrc(image_url) {
     if (!image_url) return "";
-    if (/^https?:\/\//i.test(image_url)) return image_url;
-    if (!BACKEND_ORIGIN) return image_url; // ถ้าไม่ตั้ง origin จะพยายามโหลดจาก vite
-    return `${BACKEND_ORIGIN}/${String(image_url).replace(/^\/+/, "")}`;
+    const s = String(image_url).trim();
+    if (!s) return "";
+    if (/^https?:\/\//i.test(s)) return s;
+
+    const origin = String(BACKEND_ORIGIN || "").replace(/\/+$/, "");
+    if (!origin) return s;
+
+    return `${origin}/${s.replace(/^\/+/, "")}`;
   }
 
   async function loadDiseases() {
@@ -86,15 +94,17 @@ export default function AdminDiseasesPage() {
       disease_th: selected.disease_th ?? "",
       description: selected.description ?? "",
       causes: selected.causes ?? "",
-      symptoms: selected.symptoms ?? "",
+      // ✅ รองรับทั้ง symptom และ symptoms
+      symptom: selected.symptom ?? selected.symptoms ?? "",
       image_url: selected.image_url ?? "",
     });
 
-    // เคลียร์ไฟล์ที่เลือกไว้ตอนเปลี่ยนโรค
+    // เคลียร์ไฟล์/พรีวิวตอนเปลี่ยนโรค
     setImageFile(null);
     if (imagePreview) URL.revokeObjectURL(imagePreview);
     setImagePreview("");
     if (fileRef.current) fileRef.current.value = "";
+    setImgLoadErr("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, selected]);
 
@@ -108,9 +118,9 @@ export default function AdminDiseasesPage() {
   function onPickFile(e) {
     const f = e.target.files?.[0] || null;
 
-    // เคลียร์ preview เก่า
     if (imagePreview) URL.revokeObjectURL(imagePreview);
     setImagePreview("");
+    setImgLoadErr("");
 
     setImageFile(f);
 
@@ -125,6 +135,7 @@ export default function AdminDiseasesPage() {
     setImagePreview("");
     setImageFile(null);
     if (fileRef.current) fileRef.current.value = "";
+    setImgLoadErr("");
   }
 
   async function onSave() {
@@ -132,7 +143,6 @@ export default function AdminDiseasesPage() {
     try {
       let res;
 
-      // ✅ ถ้ามีไฟล์ -> ส่งแบบ FormData
       if (imageFile) {
         const fd = new FormData();
         fd.append("disease_id", form.disease_id);
@@ -140,22 +150,30 @@ export default function AdminDiseasesPage() {
         fd.append("disease_th", form.disease_th);
         fd.append("description", form.description);
         fd.append("causes", form.causes);
-        fd.append("symptoms", form.symptoms);
-        fd.append("image_url", form.image_url); // เผื่ออยากเก็บเป็น URL/Path เอง
-        fd.append("image", imageFile);          // ✅ สำคัญ: field name ต้องเป็น "image"
+
+        // ✅ ส่งทั้ง symptom และ symptoms เพื่อรองรับหลายเวอร์ชัน
+        fd.append("symptom", form.symptom);
+        fd.append("symptoms", form.symptom);
+
+        // เผื่ออยากใส่ URL เอง (แต่ถ้าอัปไฟล์ แบ็คเอนด์จะตั้ง image_url ให้ใหม่)
+        fd.append("image_url", form.image_url);
+        fd.append("image", imageFile); // field name = image
 
         res = await fetch(`${API_BASE}/diseases/update_diseases.php`, {
           method: "POST",
           credentials: "include",
-          body: fd, // ห้ามใส่ Content-Type เอง
+          body: fd,
         });
       } else {
-        // ✅ ไม่มีไฟล์ -> ส่ง JSON ปกติ
         res = await fetch(`${API_BASE}/diseases/update_diseases.php`, {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify({
+            ...form,
+            // ✅ เผื่อแบ็คเอนด์รับ symptoms
+            symptoms: form.symptom,
+          }),
         });
       }
 
@@ -170,6 +188,10 @@ export default function AdminDiseasesPage() {
       setErr(e.message || "เกิดข้อผิดพลาด");
     }
   }
+
+  const currentImgSrc = imagePreview
+    ? imagePreview
+    : buildImgSrc(form.image_url);
 
   return (
     <div className="page">
@@ -240,7 +262,9 @@ export default function AdminDiseasesPage() {
                 <input
                   className="input"
                   value={form.disease_en}
-                  onChange={(e) => setForm((s) => ({ ...s, disease_en: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((s) => ({ ...s, disease_en: e.target.value }))
+                  }
                 />
               </div>
               <div>
@@ -248,7 +272,9 @@ export default function AdminDiseasesPage() {
                 <input
                   className="input"
                   value={form.disease_th}
-                  onChange={(e) => setForm((s) => ({ ...s, disease_th: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((s) => ({ ...s, disease_th: e.target.value }))
+                  }
                 />
               </div>
             </div>
@@ -259,7 +285,9 @@ export default function AdminDiseasesPage() {
                 className="input"
                 rows={4}
                 value={form.description}
-                onChange={(e) => setForm((s) => ({ ...s, description: e.target.value }))}
+                onChange={(e) =>
+                  setForm((s) => ({ ...s, description: e.target.value }))
+                }
                 style={{ resize: "none" }}
               />
             </div>
@@ -270,7 +298,9 @@ export default function AdminDiseasesPage() {
                 className="input"
                 rows={3}
                 value={form.causes}
-                onChange={(e) => setForm((s) => ({ ...s, causes: e.target.value }))}
+                onChange={(e) =>
+                  setForm((s) => ({ ...s, causes: e.target.value }))
+                }
                 style={{ resize: "none" }}
               />
             </div>
@@ -280,23 +310,35 @@ export default function AdminDiseasesPage() {
               <textarea
                 className="input"
                 rows={3}
-                value={form.symptoms}
-                onChange={(e) => setForm((s) => ({ ...s, symptoms: e.target.value }))}
+                value={form.symptom}
+                onChange={(e) =>
+                  setForm((s) => ({ ...s, symptom: e.target.value }))
+                }
                 style={{ resize: "none" }}
               />
             </div>
 
-            {/* ✅ รูป: ใส่ path/URL ได้ + เลือกจากเครื่องได้ */}
+            {/* รูป */}
             <div>
               <label>รูป</label>
               <input
                 className="input"
                 value={form.image_url}
-                onChange={(e) => setForm((s) => ({ ...s, image_url: e.target.value }))}
-                placeholder="URL"
+                onChange={(e) =>
+                  setForm((s) => ({ ...s, image_url: e.target.value }))
+                }
+                placeholder="เช่น uploads/disease/xxx.jpg หรือ URL เต็ม"
               />
 
-              <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <div
+                style={{
+                  marginTop: 10,
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
                 <input
                   ref={fileRef}
                   type="file"
@@ -311,45 +353,40 @@ export default function AdminDiseasesPage() {
                 ) : null}
               </div>
 
-              {/* พรีวิวรูป */}
+              {/* ✅ พรีวิวรูป (จากไฟล์ที่เลือก หรือจาก image_url เดิม) */}
               <div style={{ marginTop: 10 }}>
-                {imagePreview ? (
-                  <img
-                    src={imagePreview}
-                    alt="preview"
-                    style={{
-                      width: 260,
-                      height: 160,
-                      objectFit: "cover",
-                      borderRadius: 12,
-                      border: "1px solid #e5e7eb",
-                    }}
-                  />
-                ) : form.image_url ? (
-                  <img
-                    src={buildImgSrc(form.image_url)}
-                    alt="current"
-                    style={{
-                      width: 260,
-                      height: 160,
-                      objectFit: "cover",
-                      borderRadius: 12,
-                      border: "1px solid #e5e7eb",
-                    }}
-                    onError={(e) => {
-                      // ถ้ารูปไม่โหลด (path ไม่ถูก / origin ไม่ตั้ง) ก็ซ่อน
-                      e.currentTarget.style.display = "none";
-                    }}
-                  />
+                {currentImgSrc ? (
+                  <>
+                    <img
+                      src={currentImgSrc}
+                      alt="disease"
+                      style={{
+                        width: 260,
+                        height: 160,
+                        objectFit: "cover",
+                        borderRadius: 12,
+                        border: "1px solid #e5e7eb",
+                      }}
+                      onError={() => {
+                        setImgLoadErr(
+                          `โหลดรูปไม่สำเร็จ: ${currentImgSrc} (เช็คว่า BACKEND_ORIGIN คือ ${BACKEND_ORIGIN})`
+                        );
+                      }}
+                    />
+                    <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+                      src: {currentImgSrc}
+                    </div>
+                  </>
                 ) : (
                   <div style={{ color: "#9ca3af", fontSize: 13 }}>ยังไม่มีรูป</div>
                 )}
-              </div>
 
-              {!BACKEND_ORIGIN && form.image_url && !/^https?:\/\//i.test(form.image_url) ? (
-                <div style={{ marginTop: 6, color: "#ef4444", fontSize: 12 }}>
-                </div>
-              ) : null}
+                {imgLoadErr ? (
+                  <div style={{ marginTop: 6, color: "#ef4444", fontSize: 12 }}>
+                    {imgLoadErr}
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
