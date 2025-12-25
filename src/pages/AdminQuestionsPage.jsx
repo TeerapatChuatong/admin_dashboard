@@ -85,9 +85,7 @@ function getDiseaseNamesFromIds(q, diseases) {
     .filter(Boolean);
 
   const labels = ids.map((id) => {
-    const found = diseases.find(
-      (d) => String(d.disease_id) === String(id)
-    );
+    const found = diseases.find((d) => String(d.disease_id) === String(id));
 
     if (found) {
       return (
@@ -137,9 +135,7 @@ function attachDiseaseIds(questions, diseaseQuestions) {
 
 // หา "ชื่อโรค" จาก disease_id โดยอิงจากตาราง diseases
 function lookupDiseaseName(id, diseases) {
-  const found = diseases.find(
-    (d) => String(d.disease_id) === String(id)
-  );
+  const found = diseases.find((d) => String(d.disease_id) === String(id));
   if (found) {
     return (
       found.disease_th ||
@@ -170,10 +166,7 @@ function buildDisplayRows(questions, diseases, selectedDiseaseId) {
 
     // ยังไม่ผูกโรคเลย
     if (ids.length === 0) {
-      if (selectedDiseaseId) {
-        // โหมดกรองตามโรค → ไม่มีโรคก็ไม่ต้องแสดง
-        continue;
-      }
+      if (selectedDiseaseId) continue;
       rows.push({
         q,
         diseaseId: null,
@@ -209,6 +202,9 @@ function buildDisplayRows(questions, diseases, selectedDiseaseId) {
 
 export default function AdminQuestionsPage() {
   const { user, logout } = useAuth();
+
+  // ✅ จัดกลาง: ใช้กับ ID/ชื่อโรค/ประเภทคำถาม/คะแนนสูงสุด/ลำดับ/สถานะ
+  const centerCell = { textAlign: "center", verticalAlign: "middle" };
 
   const [allQuestions, setAllQuestions] = useState([]);
   const [questions, setQuestions] = useState([]);
@@ -256,6 +252,7 @@ export default function AdminQuestionsPage() {
   // โหลดครั้งแรก
   useEffect(() => {
     loadQuestions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // โหลดรายชื่อโรคไว้ให้เลือก filter
@@ -275,7 +272,6 @@ export default function AdminQuestionsPage() {
     let cancelled = false;
 
     if (!keyword.trim()) {
-      // ไม่มีคำค้น → กรองจาก allQuestions ตามโรค
       setQuestions(filterQuestions(allQuestions, selectedDiseaseId));
       return;
     }
@@ -321,7 +317,6 @@ export default function AdminQuestionsPage() {
   function handleDiseaseChange(e) {
     const value = e.target.value;
     setSelectedDiseaseId(value);
-    // effect ด้านบนจะจัด filter ให้เอง
   }
 
   return (
@@ -401,37 +396,55 @@ export default function AdminQuestionsPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>ชื่อโรค</th>
-                <th>ประเภทคำถาม</th>
+                <th style={centerCell}>ID</th>
+                <th style={centerCell}>ชื่อโรค</th>
+                <th style={centerCell}>ประเภทคำถาม</th>
                 <th>คำถาม</th>
-                <th>ลำดับ</th>
-                <th>สถานะ</th>
+
+                {/* ✅ คะแนนสูงสุดถัดจากคำถาม */}
+                <th style={centerCell}>คะแนนสูงสุด</th>
+
+                <th style={centerCell}>ลำดับ</th>
+                <th style={centerCell}>สถานะ</th>
                 <th>จัดการ</th>
               </tr>
             </thead>
+
             <tbody>
               {buildDisplayRows(questions, diseases, selectedDiseaseId).map(
                 (row, idx) => {
                   const q = row.q;
                   const id = getId(q);
-                  const diseaseName = row.diseaseName;
+
+                  // ชื่อโรค
+                  const diseaseName =
+                    row.diseaseName ||
+                    getDiseaseNamesFromIds(q, diseases) ||
+                    "-";
+
                   const questionTypeLabel = getQuestionTypeLabel(q);
                   const text =
                     q.question_text || q.question || q.text || "(ไม่ระบุ)";
+
+                  // ✅ max_score (ถ้า API ส่งมา)
+                  const maxScore = q.max_score ?? q.maxScore ?? q.max ?? "-";
+
                   const order = getOrder(q);
                   const active = getActive(q);
 
                   return (
-                    <tr
-                      key={`${id}-${row.diseaseId ?? "none"}-${idx}`}
-                    >
-                      <td>{id}</td>
-                      <td>{diseaseName}</td>
-                      <td>{questionTypeLabel}</td>
+                    <tr key={`${id}-${row.diseaseId ?? "none"}-${idx}`}>
+                      <td style={centerCell}>{id}</td>
+                      <td style={centerCell}>{diseaseName}</td>
+                      <td style={centerCell}>{questionTypeLabel}</td>
+
                       <td style={{ whiteSpace: "pre-wrap" }}>{text}</td>
-                      <td>{order}</td>
-                      <td>{active === 1 ? "เปิด" : "ปิด"}</td>
+
+                      <td style={centerCell}>{maxScore}</td>
+
+                      <td style={centerCell}>{order}</td>
+                      <td style={centerCell}>{active === 1 ? "เปิด" : "ปิด"}</td>
+
                       <td>
                         <button
                           className="btn xs"

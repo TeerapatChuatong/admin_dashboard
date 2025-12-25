@@ -3,21 +3,37 @@ import { updateQuestionApi } from "../api/updateQuestionApi";
 import { readDiseasesApi } from "../api/readDiseasesApi";
 
 const QUESTION_TYPES = [
-  { value: "yes_no",  label: "ใช่ / ไม่ใช่" },
-  { value: "multi",   label: "ตัวเลือก" },
+  { value: "yes_no", label: "ใช่ / ไม่ใช่" },
+  { value: "multi", label: "ตัวเลือก" },
   { value: "numeric", label: "ตัวเลข" },
 ];
 
+function toInt(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export default function EditQuestionModal({ question, onClose, onSuccess }) {
   const [diseases, setDiseases] = useState([]);
+
+  const firstDiseaseId =
+    Array.isArray(question?.disease_ids) && question.disease_ids.length > 0
+      ? question.disease_ids[0]
+      : question?.disease_id || "";
+
   const [form, setForm] = useState({
-    question_id: null,
-    disease_id: "",
-    question_text: "",
-    question_type: "yes_no",
-    sort_order: 0,
-    is_active: 1,
+    question_id: question?.question_id,
+    disease_id: firstDiseaseId,
+    question_text: question?.question_text || "",
+    question_type: question?.question_type || "yes_no",
+
+    // ✅ เพิ่ม
+    max_score: toInt(question?.max_score ?? 5, 5),
+
+    sort_order: toInt(question?.sort_order ?? 0, 0),
+    is_active: toInt(question?.is_active ?? 1, 1),
   });
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -27,26 +43,6 @@ export default function EditQuestionModal({ question, onClose, onSuccess }) {
       .catch((e) => setError(e.message || "โหลดโรคไม่สำเร็จ"));
   }, []);
 
-  useEffect(() => {
-    if (!question) return;
-
-    const ids = String(question.disease_ids || "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    setForm({
-      question_id: question.question_id ?? question.id,
-      disease_id: ids[0] || "",
-      question_text:
-        question.question_text ?? question.question ?? question.text ?? "",
-      question_type: question.question_type || "yes_no",
-      sort_order: question.sort_order ?? question.order_no ?? 0,
-      is_active:
-        Number(question.is_active ?? question.active ?? 1) === 1 ? 1 : 0,
-    });
-  }, [question]);
-
   async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true);
@@ -55,8 +51,14 @@ export default function EditQuestionModal({ question, onClose, onSuccess }) {
     try {
       await updateQuestionApi({
         ...form,
-        order_no: Number(form.sort_order) || 0,
+        question_id: Number(form.question_id),
+        disease_id: Number(form.disease_id),
+        max_score: Number(form.max_score),
+        sort_order: Number(form.sort_order) || 0,
+        is_active: Number(form.is_active),
+        order_no: Number(form.sort_order) || 0, // เผื่อ backend เก่า
       });
+
       onSuccess && onSuccess();
     } catch (err) {
       setError(err.message || "แก้ไขคำถามไม่สำเร็จ");
@@ -64,8 +66,6 @@ export default function EditQuestionModal({ question, onClose, onSuccess }) {
       setSaving(false);
     }
   }
-
-  if (!question) return null;
 
   return (
     <div className="modal-backdrop">
@@ -78,9 +78,7 @@ export default function EditQuestionModal({ question, onClose, onSuccess }) {
             โรค / กลุ่มคำถาม
             <select
               value={form.disease_id}
-              onChange={(e) =>
-                setForm({ ...form, disease_id: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, disease_id: e.target.value })}
               required
             >
               <option value="" disabled>
@@ -115,6 +113,18 @@ export default function EditQuestionModal({ question, onClose, onSuccess }) {
             </select>
           </label>
 
+          {/* ✅ เพิ่มคะแนนสูงสุด */}
+          <label>
+            คะแนนสูงสุดของคำถาม
+            <input
+              type="number"
+              min="1"
+              value={form.max_score}
+              onChange={(e) => setForm({ ...form, max_score: e.target.value })}
+              required
+            />
+          </label>
+
           <label>
             ข้อความคำถาม
             <textarea
@@ -133,15 +143,15 @@ export default function EditQuestionModal({ question, onClose, onSuccess }) {
               type="number"
               min="0"
               value={form.sort_order}
-              onChange={(e) =>
-                setForm({ ...form, sort_order: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
             />
           </label>
 
           {/* สถานะคำถาม */}
           <div className="status-field">
-            <span className="status-label"><h3>สถานะคำถาม</h3></span>
+            <span className="status-label">
+              <h3>สถานะคำถาม</h3>
+            </span>
             <div className="status-row">
               <label className="status-option">
                 <input
@@ -169,13 +179,9 @@ export default function EditQuestionModal({ question, onClose, onSuccess }) {
 
           <div className="form-actions">
             <button className="btn" type="submit" disabled={saving}>
-              {saving ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
+              {saving ? "กำลังบันทึก..." : "บันทึก"}
             </button>
-            <button
-              className="btn ghost"
-              type="button"
-              onClick={onClose}
-            >
+            <button className="btn ghost" type="button" onClick={onClose}>
               ยกเลิก
             </button>
           </div>

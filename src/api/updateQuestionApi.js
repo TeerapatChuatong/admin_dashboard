@@ -12,10 +12,16 @@ export async function updateQuestionApi(form) {
 
   if (form.question_text != null) payload.question_text = String(form.question_text).trim();
   if (form.question_type != null) payload.question_type = form.question_type;
-
-  if (form.sort_order != null || form.order_no != null) {
-    payload.sort_order = Number(form.sort_order ?? form.order_no) || 0;
+  if (form.sort_order != null) {
+    payload.sort_order = Number(form.sort_order) || 0;
+    payload.order_no = Number(form.sort_order) || 0; // เผื่อ backend เก่า
   }
+
+  // ✅ เพิ่ม max_score
+  if (form.max_score != null) payload.max_score = Number(form.max_score);
+
+  // (ไม่บังคับ) รองรับ is_active ถ้า backend มีคอลัมน์
+  if (form.is_active != null) payload.is_active = Number(form.is_active);
 
   const res = await fetch(`${QUESTIONS_BASE}/update_questions.php`, {
     method: "PATCH",
@@ -24,5 +30,5 @@ export async function updateQuestionApi(form) {
     body: JSON.stringify(payload),
   });
 
-  return toJsonOrError(res, "แก้ไขคำถามไม่สำเร็จ");
+  return toJsonOrError(res);
 }

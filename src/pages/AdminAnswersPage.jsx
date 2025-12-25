@@ -97,7 +97,6 @@ async function deleteChoice(choice_id) {
 }
 
 async function fetchScoresMap({ disease_id, question_id }) {
-  // ✅ ต้องส่ง credentials + Bearer token ไม่งั้นจะเจอ Please login first
   if (!disease_id || !question_id) return new Map();
 
   const url = `${API_BASE}/scores/read_scores.php?disease_id=${encodeURIComponent(
@@ -118,6 +117,33 @@ async function fetchScoresMap({ disease_id, question_id }) {
 
 function qText(q) {
   return String(q?.question_text ?? q?.question ?? q?.text ?? "");
+}
+
+// ✅ ดึง max_score แบบกันได้หลายชื่อฟิลด์
+function qMax(q) {
+  const v = q?.max_score ?? q?.maxScore ?? q?.max ?? null;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null; // null = ไม่กำหนดเพดาน
+}
+
+function calcSummaryFromScoreMap(scoreMap, maxScore) {
+  let total = 0;
+  for (const s of scoreMap.values()) {
+    const v = Number(s?.score_value ?? s?.risk_score ?? s?.score ?? 0) || 0;
+    total += v;
+  }
+
+  const max = maxScore != null ? Number(maxScore) : null;
+  const hasMax = Number.isFinite(max) && max > 0;
+  const remaining = hasMax ? max - total : null;
+  const exceed = hasMax ? total > max : false;
+
+  return {
+    total,
+    max_score: hasMax ? max : null,
+    remaining,
+    exceed,
+  };
 }
 
 // ---------------- page ----------------
@@ -141,8 +167,15 @@ export default function AdminAnswersPage() {
   const [openCreate, setOpenCreate] = useState(false);
   const [editAnswer, setEditAnswer] = useState(null);
 
-  // ✅ คำถามของโรค (จาก pivot disease_questions)
-  const questionsForDisease = useMemo(() => {
+  // ✅ summary คะแนนรวม/คงเหลือ
+  const [scoreSummary, setScoreSummary] = useState({
+    total: 0,
+    max_score: null,
+    remaining: null,
+    exceed: false,
+  });
+
+  const filteredQuestions = useMemo(() => {
     if (!selectedDiseaseId) return [];
 
     const did = String(selectedDiseaseId);
@@ -174,6 +207,22 @@ export default function AdminAnswersPage() {
   }, [allQuestions, selectedQuestionId]);
 
   const currentQuestionText = currentQuestion ? qText(currentQuestion) : "";
+  const currentMaxScore = currentQuestion ? qMax(currentQuestion) : null;
+
+  // ✅ NEW: ปิดปุ่มเพิ่มคำตอบ เมื่อ remaining <= 0 (มี max_score)
+  const addDisabled =
+    !selectedQuestionId ||
+    !selectedDiseaseId ||
+    (scoreSummary?.max_score != null && Number(scoreSummary?.remaining ?? 999999) <= 0);
+
+  const addDisabledTitle =
+    !selectedDiseaseId
+      ? "กรุณาเลือกโรคก่อน"
+      : !selectedQuestionId
+      ? "กรุณาเลือกคำถามก่อน"
+      : scoreSummary?.max_score != null && Number(scoreSummary?.remaining ?? 0) <= 0
+      ? "คะแนนคงเหลือเป็น 0 (เต็มแล้ว) จึงไม่สามารถเพิ่มคำตอบใหม่ได้"
+      : "";
 
   useEffect(() => {
     (async () => {
@@ -195,6 +244,7 @@ export default function AdminAnswersPage() {
   async function loadAnswers(questionId = selectedQuestionId) {
     if (!questionId || !selectedDiseaseId) {
       setAnswers([]);
+      setScoreSummary({ total: 0, max_score: null, remaining: null, exceed: false });
       return;
     }
 
@@ -202,10 +252,10 @@ export default function AdminAnswersPage() {
     setError("");
 
     try {
-      // 1) อ่าน choices ของคำถาม
+      // 1) choices
       const list = await readChoices(questionId);
 
-      // 2) อ่าน scores แล้ว merge ใส่แต่ละ choice (fix score 0)
+      // 2) scores map
       const scoreMap = await fetchScoresMap({
         disease_id: selectedDiseaseId,
         question_id: questionId,
@@ -232,9 +282,19 @@ export default function AdminAnswersPage() {
       });
 
       setAnswers(merged);
+
+      // ✅ summary คะแนนรวม/คงเหลือ
+      const summary = calcSummaryFromScoreMap(scoreMap, currentMaxScore);
+      setScoreSummary(summary);
     } catch (err) {
       setError(err?.message || "โหลดคำตอบไม่สำเร็จ");
       setAnswers([]);
+      setScoreSummary({
+        total: 0,
+        max_score: currentMaxScore ?? null,
+        remaining: null,
+        exceed: false,
+      });
     } finally {
       setLoading(false);
     }
@@ -245,6 +305,7 @@ export default function AdminAnswersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedQuestionId, selectedDiseaseId]);
 
+  // search
   useEffect(() => {
     let cancelled = false;
     if (!selectedQuestionId || !selectedDiseaseId) return;
@@ -285,9 +346,15 @@ export default function AdminAnswersPage() {
           };
         });
 
-        if (!cancelled) setAnswers(merged);
+        if (!cancelled) {
+          setAnswers(merged);
+
+          // ✅ summary ต้องเป็นทั้งคำถาม ไม่ใช่เฉพาะผลค้นหา
+          const summary = calcSummaryFromScoreMap(scoreMap, currentMaxScore);
+          setScoreSummary(summary);
+        }
       } catch (err) {
-        if (!cancelled) setError(err?.message || "ค้นหาคำตอบไม่สำเร็จ");
+        if (!cancelled) setError(err?.message || "ค้นหาไม่สำเร็จ");
       } finally {
         if (!cancelled) setSearching(false);
       }
@@ -320,6 +387,7 @@ export default function AdminAnswersPage() {
     setSelectedQuestionId("");
     setKeyword("");
     setAnswers([]);
+    setScoreSummary({ total: 0, max_score: null, remaining: null, exceed: false });
   }
 
   function handleQuestionChange(e) {
@@ -327,6 +395,16 @@ export default function AdminAnswersPage() {
     setSelectedQuestionId(value);
     setKeyword("");
   }
+
+  // auto pick first question when choose disease
+  useEffect(() => {
+    if (!selectedDiseaseId) return;
+    if (selectedQuestionId) return;
+
+    const first = filteredQuestions[0];
+    if (first) setSelectedQuestionId(String(first.question_id ?? first.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDiseaseId, filteredQuestions]);
 
   return (
     <div className="page">
@@ -374,30 +452,20 @@ export default function AdminAnswersPage() {
         <select
           value={selectedQuestionId}
           onChange={handleQuestionChange}
-          style={{ minWidth: 320 }}
+          style={{ minWidth: 320, flex: 1 }}
           disabled={!selectedDiseaseId}
         >
-          <option value="">
-            {!selectedDiseaseId
-              ? "-- กรุณาเลือกโรคก่อน --"
-              : questionsForDisease.length === 0
-              ? "-- ยังไม่มีคำถามของโรคนี้ --"
-              : "-- เลือกคำถามของโรคนี้ --"}
-          </option>
-
-          {questionsForDisease.map((q) => {
-            const id = q.question_id ?? q.id;
-            return (
-              <option key={id} value={id}>
-                {qText(q)}
-              </option>
-            );
-          })}
+          <option value="">-- เลือกคำถาม --</option>
+          {filteredQuestions.map((q) => (
+            <option key={q.question_id ?? q.id} value={q.question_id ?? q.id}>
+              {String(qText(q)).slice(0, 80)}
+            </option>
+          ))}
         </select>
 
         {/* ค้นหา */}
         <input
-          placeholder="ค้นหาคำตอบ / ID"
+          placeholder="ค้นหาคำตอบ..."
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           style={{ flex: 1, minWidth: 180 }}
@@ -410,59 +478,110 @@ export default function AdminAnswersPage() {
           รีเซ็ต
         </button>
 
+        {/* ✅ ปุ่มเพิ่มคำตอบ: ปิดเมื่อ remaining <= 0 */}
         <button
           className="btn"
           onClick={() => setOpenCreate(true)}
-          disabled={!selectedQuestionId || !selectedDiseaseId}
+          disabled={addDisabled}
+          title={addDisabledTitle}
         >
           + เพิ่มคำตอบ
         </button>
       </div>
 
-      <div className="card">
-        {!selectedQuestionId ? (
-          <div>กรุณาเลือกโรคและคำถามด้านบนก่อนเพื่อจัดการคำตอบ</div>
-        ) : loading ? (
-          <div>กำลังโหลด...</div>
-        ) : answers.length === 0 ? (
-          <div>ไม่พบข้อมูลคำตอบของคำถามนี้</div>
-        ) : (
+      {/* สรุปคะแนนรวม/คงเหลือ */}
+      {selectedDiseaseId && selectedQuestionId && (
+        <div className="card" style={{ marginTop: 10 }}>
+          <div style={{ fontWeight: 800, marginBottom: 6 }}>สรุปคะแนนของคำถาม</div>
+
+          <div style={{ whiteSpace: "pre-wrap", marginBottom: 8 }}>
+            <b>คำถาม:</b> {currentQuestionText || "-"}
+          </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 14, alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>คะแนนรวมของคำตอบทั้งหมด</div>
+              <div style={{ fontSize: 20, fontWeight: 900 }}>{scoreSummary.total}</div>
+            </div>
+
+            {scoreSummary.max_score ? (
+              <>
+                <div>
+                  <div style={{ fontSize: 12, color: "#6b7280" }}>คะแนนสูงสุด (max_score)</div>
+                  <div style={{ fontSize: 20, fontWeight: 900 }}>{scoreSummary.max_score}</div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 12, color: "#6b7280" }}>คะแนนคงเหลือ</div>
+                  <div style={{ fontSize: 20, fontWeight: 900 }}>{scoreSummary.remaining}</div>
+                </div>
+
+                {scoreSummary.exceed && (
+                  <div className="alert error" style={{ margin: 0 }}>
+                    คะแนนรวมเกินกำหนด (เกิน {Math.abs(scoreSummary.remaining)} คะแนน)
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ fontSize: 12, color: "#6b7280" }}>
+                (ยังไม่ได้กำหนด max_score สำหรับคำถามนี้)
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="card" style={{ marginTop: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h3 style={{ margin: 0 }}>รายการคำตอบ</h3>
+          {loading && <span style={{ fontSize: 12, color: "#6b7280" }}>กำลังโหลด...</span>}
+        </div>
+
+        <div style={{ overflowX: "auto", marginTop: 10 }}>
           <table className="table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>คำถาม</th>
+                <th style={{ width: 80 }}>ID</th>
                 <th>คำตอบ</th>
-                <th>คะแนน</th>
-                <th>จัดการ</th>
+                <th style={{ width: 140 }}>คะแนน</th>
+                <th style={{ width: 220 }}>จัดการ</th>
               </tr>
             </thead>
             <tbody>
-              {answers.map((a) => {
-                const id = pick(a, ["choice_id", "answer_id", "id"]);
-                const text = pick(a, ["choice_label", "answer_text", "answer", "text"]);
-                const score = pick(a, ["risk_score", "score_value", "score", "points"], 0);
+              {answers.length === 0 ? (
+                <tr>
+                  <td colSpan={4} style={{ color: "#6b7280" }}>
+                    {selectedQuestionId ? "ไม่มีคำตอบ" : "กรุณาเลือกโรคและคำถาม"}
+                  </td>
+                </tr>
+              ) : (
+                answers.map((a) => {
+                  const id = pick(a, ["choice_id", "answer_id", "id"], "-");
+                  const label = pick(a, ["choice_label", "answer_text", "label"], "-");
+                  const score = pick(a, ["risk_score", "score_value", "score"], 0);
 
-                return (
-                  <tr key={id}>
-                    <td>{id}</td>
-                    <td style={{ whiteSpace: "pre-wrap" }}>{currentQuestionText}</td>
-                    <td style={{ whiteSpace: "pre-wrap" }}>{text}</td>
-                    <td>{Number(score) || 0}</td>
-                    <td>
-                      <button className="btn xs" onClick={() => setEditAnswer(a)}>
-                        แก้ไข
-                      </button>{" "}
-                      <button className="btn xs danger" onClick={() => handleDelete(a)}>
-                        ลบ
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+                  return (
+                    <tr key={String(id)}>
+                      <td>{id}</td>
+                      <td style={{ whiteSpace: "pre-wrap" }}>{label}</td>
+                      <td>{score}</td>
+                      <td>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <button className="btn" onClick={() => setEditAnswer(a)}>
+                            แก้ไข
+                          </button>
+                          <button className="btn danger" onClick={() => handleDelete(a)}>
+                            ลบ
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
-        )}
+        </div>
       </div>
 
       {openCreate && (
