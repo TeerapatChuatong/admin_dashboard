@@ -220,6 +220,22 @@ export default function AdminQuestionsPage() {
   const [openCreate, setOpenCreate] = useState(false);
   const [editQuestion, setEditQuestion] = useState(null);
 
+  // ✅ NEW: ให้ sort_order ต่อจากลำดับล่าสุดอัตโนมัติ
+  // - ถ้าเลือกโรคอยู่ → ต่อจากคำถามล่าสุดของโรคนั้น
+  // - ถ้าไม่เลือกโรค → ต่อจากล่าสุดทั้งหมด
+  function getNextSortOrderForDisease(diseaseId) {
+    const did = String(diseaseId || "");
+    const base = Array.isArray(allQuestions) ? allQuestions : [];
+    const list = did ? base.filter((q) => matchesDisease(q, did)) : base;
+
+    let max = 0;
+    for (const q of list) {
+      const v = Number(getOrder(q) || 0);
+      if (Number.isFinite(v) && v > max) max = v;
+    }
+    return max + 1;
+  }
+
   // โหลดคำถาม + ตารางเชื่อม disease_questions แล้วรวมกัน
   async function loadQuestions(diseaseId = selectedDiseaseId) {
     setLoading(true);
@@ -470,6 +486,10 @@ export default function AdminQuestionsPage() {
 
       {openCreate && (
         <CreateQuestionModal
+          // ✅ NEW: ให้ modal ตั้งค่า sort_order ต่อจากล่าสุดอัตโนมัติ
+          initialDiseaseId={selectedDiseaseId}
+          initialSortOrder={getNextSortOrderForDisease(selectedDiseaseId)}
+          getNextSortOrder={getNextSortOrderForDisease}
           onClose={() => setOpenCreate(false)}
           onSuccess={async () => {
             setOpenCreate(false);

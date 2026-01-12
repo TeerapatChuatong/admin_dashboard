@@ -9,17 +9,29 @@ const QUESTION_TYPES = [
   { value: "numeric", label: "ตัวเลข" },
 ];
 
-export default function CreateQuestionModal({ onClose, onSuccess }) {
+export default function CreateQuestionModal({
+  onClose,
+  onSuccess,
+  // ✅ NEW: ตั้งค่าเริ่มต้นจากหน้ารายการ (ถ้าเลือกโรคอยู่)
+  initialDiseaseId = "",
+  // ✅ NEW: sort_order เริ่มต้น (ปกติ = ต่อจากลำดับล่าสุด)
+  initialSortOrder = null,
+  // ✅ NEW: ฟังก์ชันคำนวณ sort_order ถัดไป (คำนวณตามโรคที่เลือก)
+  getNextSortOrder,
+}) {
   const [diseases, setDiseases] = useState([]);
+
+  // ✅ NEW: ถ้าผู้ใช้พิมพ์ลำดับเอง → ไม่ให้ auto ไปทับ
+  const [autoOrder, setAutoOrder] = useState(true);
 
   // ✅ เก็บ type ให้ชัด: disease_id เป็น string (เพราะมาจาก select)
   // ✅ max_score / sort_order เป็น number จริง
   const [form, setForm] = useState({
-    disease_id: "",
+    disease_id: initialDiseaseId ? String(initialDiseaseId) : "",
     question_text: "",
     question_type: "yes_no",
     max_score: 5,
-    sort_order: 0,
+    sort_order: Number.isFinite(Number(initialSortOrder)) ? Number(initialSortOrder) : 0,
     is_active: 1,
   });
 
@@ -35,6 +47,22 @@ export default function CreateQuestionModal({ onClose, onSuccess }) {
       })
       .catch((e) => setError(e?.message || "โหลดโรคไม่สำเร็จ"));
   }, []);
+
+  // ✅ NEW: เมื่อเลือกโรค (disease_id) แล้ว ให้ sort_order ต่อจากลำดับล่าสุดของโรคนั้นอัตโนมัติ
+  useEffect(() => {
+    if (!autoOrder) return;
+    if (!getNextSortOrder) return;
+    if (!form.disease_id) return;
+
+    const next = getNextSortOrder(form.disease_id);
+    if (!Number.isFinite(Number(next))) return;
+
+    setForm((prev) => {
+      const n = Number(next);
+      if (Number(prev.sort_order) === n) return prev;
+      return { ...prev, sort_order: n };
+    });
+  }, [form.disease_id, autoOrder, getNextSortOrder]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -89,7 +117,11 @@ export default function CreateQuestionModal({ onClose, onSuccess }) {
             โรค / กลุ่มคำถาม
             <select
               value={form.disease_id}
-              onChange={(e) => setForm({ ...form, disease_id: e.target.value })}
+              onChange={(e) => {
+                // ✅ NEW: เลือกโรคใหม่ → กลับมาใช้ autoOrder แล้วคำนวณลำดับให้
+                setAutoOrder(true);
+                setForm({ ...form, disease_id: e.target.value });
+              }}
               required
             >
               <option value="" disabled>
@@ -155,12 +187,14 @@ export default function CreateQuestionModal({ onClose, onSuccess }) {
               type="number"
               min="0"
               value={form.sort_order}
-              onChange={(e) =>
+              onChange={(e) => {
+                // ✅ NEW: ผู้ใช้แก้เลขเอง → ปิด autoOrder กันทับค่า
+                setAutoOrder(false);
                 setForm({
                   ...form,
                   sort_order: parseInt(e.target.value || "0", 10),
-                })
-              }
+                });
+              }}
             />
           </label>
 
