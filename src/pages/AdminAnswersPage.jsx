@@ -3,25 +3,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
 import { API_BASE, toJsonOrError } from "../api/apiClient";
-
+import { deleteAnswerApi } from "../api/deleteAnswerApi";
 import CreateAnswerModal from "../components/CreateAnswerModal";
 import EditAnswerModal from "../components/EditAnswerModal";
-
-// ---------------- helpers ----------------
-function pick(obj, keys, fallback = "") {
-  for (const k of keys) {
-    if (obj && obj[k] !== undefined && obj[k] !== null) return obj[k];
-  }
-  return fallback;
-}
-
-function extractList(data) {
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.data)) return data.data;
-  if (Array.isArray(data?.items)) return data.items;
-  if (Array.isArray(data?.rows)) return data.rows;
-  return [];
-}
 
 function getAuthToken() {
   try {
@@ -32,233 +16,251 @@ function getAuthToken() {
   }
 }
 
-async function authFetch(url, options = {}) {
+async function authFetch(url, opts = {}) {
   const token = getAuthToken();
-  const headers = new Headers(options.headers || {});
-  if (token && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-  if (!headers.has("Content-Type") && options.body && !(options.body instanceof FormData)) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  return fetch(url, {
-    credentials: "include",
-    ...options,
-    headers,
-  });
+  const headers = { ...(opts.headers || {}) };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return fetch(url, { ...opts, headers, credentials: "include" });
 }
 
-async function apiGet(url, errMsg) {
-  const res = await authFetch(url, { method: "GET" });
-  return toJsonOrError(res, errMsg);
-}
-
-async function apiDelete(url, errMsg) {
-  const res = await authFetch(url, { method: "DELETE" });
-  return toJsonOrError(res, errMsg);
+function pick(obj, keys, fallback = "") {
+  for (const k of keys) {
+    if (obj && obj[k] !== undefined && obj[k] !== null && obj[k] !== "")
+      return obj[k];
+  }
+  return fallback;
 }
 
 async function readDiseases() {
-  const data = await apiGet(`${API_BASE}/diseases/read_diseases.php`, "โหลดโรคไม่สำเร็จ");
-  return extractList(data);
+  const res = await authFetch(`${API_BASE}/diseases/read_diseases.php`);
+  const data = await toJsonOrError(res, "โหลดรายชื่อโรคไม่สำเร็จ");
+  const rows = data?.data || data || [];
+  return Array.isArray(rows) ? rows : [];
 }
 
-async function readQuestions() {
-  const data = await apiGet(`${API_BASE}/questions/read_questions.php`, "โหลดคำถามไม่สำเร็จ");
-  return extractList(data);
-}
-
-async function readDiseaseQuestions() {
-  const data = await apiGet(
-    `${API_BASE}/disease_questions/read_disease_questions.php`,
-    "โหลดคำถามของโรคไม่สำเร็จ"
+async function readDiseaseQuestions(diseaseId) {
+  const res = await authFetch(
+    `${API_BASE}/disease_questions/read_disease_questions.php?disease_id=${encodeURIComponent(
+      diseaseId
+    )}`
   );
-  return extractList(data);
+  const data = await toJsonOrError(res, "โหลดคำถามของโรคไม่สำเร็จ");
+  const rows = data?.data || data || [];
+  return Array.isArray(rows) ? rows : [];
 }
 
-async function readChoices(question_id) {
-  const url = `${API_BASE}/choices/read_choices.php?question_id=${encodeURIComponent(question_id)}`;
-  const data = await apiGet(url, "โหลดคำตอบไม่สำเร็จ");
-  return extractList(data);
+async function readQuestionsByIds(questionIds = []) {
+  if (!questionIds.length) return [];
+  const res = await authFetch(`${API_BASE}/questions/read_questions.php`);
+  const data = await toJsonOrError(res, "โหลดรายการคำถามไม่สำเร็จ");
+  const rows = data?.data || data || [];
+  const set = new Set(questionIds.map(String));
+  return (Array.isArray(rows) ? rows : []).filter((q) =>
+    set.has(String(q.question_id ?? q.id))
+  );
 }
 
-async function searchChoices({ keyword, question_id }) {
-  const url = `${API_BASE}/choices/search_choices.php?q=${encodeURIComponent(
-    keyword
-  )}&question_id=${encodeURIComponent(question_id)}`;
-  const data = await apiGet(url, "ค้นหาคำตอบไม่สำเร็จ");
-  return extractList(data);
-}
-
-async function deleteChoice(choice_id) {
-  const url = `${API_BASE}/choices/delete_choices.php?choice_id=${encodeURIComponent(choice_id)}`;
-  return apiDelete(url, "ลบคำตอบไม่สำเร็จ");
+async function readChoices(questionId) {
+  const res = await authFetch(
+    `${API_BASE}/choices/read_choices.php?question_id=${encodeURIComponent(
+      questionId
+    )}`
+  );
+  const data = await toJsonOrError(res, "โหลดคำตอบไม่สำเร็จ");
+  const rows = data?.data || data || [];
+  return Array.isArray(rows) ? rows : [];
 }
 
 async function fetchScoresMap({ disease_id, question_id }) {
-  if (!disease_id || !question_id) return new Map();
-
-  const url = `${API_BASE}/scores/read_scores.php?disease_id=${encodeURIComponent(
-    disease_id
-  )}&question_id=${encodeURIComponent(question_id)}`;
-
-  const data = await apiGet(url, "โหลดคะแนนไม่สำเร็จ");
-  const list = extractList(data);
-
-  const map = new Map(); // choice_id -> scoreRow
-  for (const s of list) {
-    const cid = String(s.choice_id ?? s.choiceId ?? "");
-    if (!cid) continue;
-    map.set(cid, s);
-  }
+  const res = await authFetch(
+    `${API_BASE}/scores/read_scores.php?disease_id=${encodeURIComponent(
+      disease_id
+    )}&question_id=${encodeURIComponent(question_id)}`
+  );
+  const data = await toJsonOrError(res, "โหลดคะแนนไม่สำเร็จ");
+  const rows = data?.data || data || [];
+  const map = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((r) => {
+    const cid = String(r.choice_id ?? r.id ?? "");
+    if (!cid) return;
+    map.set(cid, r);
+  });
   return map;
 }
 
-function qText(q) {
-  return String(q?.question_text ?? q?.question ?? q?.text ?? "");
+const centerCell = {
+  textAlign: "center",
+  verticalAlign: "middle",
+  whiteSpace: "nowrap",
+};
+const btnCell = { display: "flex", gap: 8, justifyContent: "center" };
+
+function questionTypeLabel(type) {
+  const t = String(type || "");
+  if (t === "yes_no") return "ใช่ / ไม่ใช่";
+  if (t === "numeric") return "ตัวเลข";
+  if (t === "multi") return "ตัวเลือก";
+  return t || "-";
 }
 
-// ✅ ดึง max_score แบบกันได้หลายชื่อฟิลด์
-function qMax(q) {
-  const v = q?.max_score ?? q?.maxScore ?? q?.max ?? null;
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? n : null; // null = ไม่กำหนดเพดาน
-}
-
-function calcSummaryFromScoreMap(scoreMap, maxScore) {
-  let total = 0;
-  for (const s of scoreMap.values()) {
-    const v = Number(s?.score_value ?? s?.risk_score ?? s?.score ?? 0) || 0;
-    total += v;
-  }
-
-  const max = maxScore != null ? Number(maxScore) : null;
-  const hasMax = Number.isFinite(max) && max > 0;
-  const remaining = hasMax ? max - total : null;
-  const exceed = hasMax ? total > max : false;
-
-  return {
-    total,
-    max_score: hasMax ? max : null,
-    remaining,
-    exceed,
-  };
-}
-
-// ---------------- page ----------------
 export default function AdminAnswersPage() {
   const { user, logout } = useAuth();
 
-  const [answers, setAnswers] = useState([]);
-
-  const [diseases, setDiseases] = useState([]);
-  const [allQuestions, setAllQuestions] = useState([]);
-  const [diseaseQuestions, setDiseaseQuestions] = useState([]); // pivot rows
-
-  const [selectedDiseaseId, setSelectedDiseaseId] = useState("");
-  const [selectedQuestionId, setSelectedQuestionId] = useState("");
-
-  const [keyword, setKeyword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
 
+  const [diseases, setDiseases] = useState([]);
+  const [selectedDiseaseId, setSelectedDiseaseId] = useState("");
+
+  const [questions, setQuestions] = useState([]);
+  const [selectedQuestionId, setSelectedQuestionId] = useState("");
+
+  const [answers, setAnswers] = useState([]); // all (merged with score)
+  const [keyword, setKeyword] = useState("");
+
   const [openCreate, setOpenCreate] = useState(false);
-  const [editAnswer, setEditAnswer] = useState(null);
+  const [openEdit, setOpenEdit] = useState(false);
+  const [editOptions, setEditOptions] = useState([]);
 
-  // ✅ summary คะแนนรวม/คงเหลือ
-  const [scoreSummary, setScoreSummary] = useState({
-    total: 0,
-    max_score: null,
-    remaining: null,
-    exceed: false,
-  });
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError("");
+    (async () => {
+      try {
+        const ds = await readDiseases();
+        if (!alive) return;
+        setDiseases(ds);
+        if (!selectedDiseaseId && ds.length) {
+          setSelectedDiseaseId(String(ds[0].disease_id ?? ds[0].id));
+        }
+      } catch (e) {
+        if (!alive) return;
+        setError(e?.message || String(e));
+      } finally {
+        if (!alive) return;
+        setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const filteredQuestions = useMemo(() => {
-    if (!selectedDiseaseId) return [];
+  useEffect(() => {
+    if (!selectedDiseaseId) return;
+    let alive = true;
+    setLoading(true);
+    setError("");
+    setQuestions([]);
+    setSelectedQuestionId("");
+    setAnswers([]);
+    (async () => {
+      try {
+        const dq = await readDiseaseQuestions(selectedDiseaseId);
+        const qids = dq
+          .map((x) => x.question_id ?? x.id)
+          .filter((x) => x !== undefined && x !== null)
+          .map(String);
 
-    const did = String(selectedDiseaseId);
-    const qIds = new Set(
-      diseaseQuestions
-        .filter((r) => String(r.disease_id ?? r.diseaseId) === did)
-        .map((r) => String(r.question_id ?? r.questionId))
-        .filter(Boolean)
+        const qs = await readQuestionsByIds(qids);
+
+        const byId = new Map(qs.map((q) => [String(q.question_id ?? q.id), q]));
+        const merged = dq
+          .map((x) => {
+            const qid = String(x.question_id ?? x.id ?? "");
+            const q = byId.get(qid) || {};
+            return {
+              ...x,
+              question_id: qid,
+              question_text: x.question_text ?? q.question_text ?? q.text ?? "",
+              question_type: x.question_type ?? q.question_type ?? "multi",
+              max_score: x.max_score ?? q.max_score ?? null,
+            };
+          })
+          .filter((x) => x.question_id);
+
+        if (!alive) return;
+        setQuestions(merged);
+
+        if (merged.length) {
+          setSelectedQuestionId(String(merged[0].question_id));
+        }
+      } catch (e) {
+        if (!alive) return;
+        setError(e?.message || String(e));
+      } finally {
+        if (!alive) return;
+        setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [selectedDiseaseId]);
+
+  const selectedDiseaseName = useMemo(() => {
+    const d = diseases.find(
+      (x) => String(x.disease_id ?? x.id) === String(selectedDiseaseId)
     );
-
-    const filtered = allQuestions.filter((q) => qIds.has(String(q.question_id ?? q.id)));
-
-    filtered.sort((a, b) => {
-      const ao = Number(a.sort_order ?? a.order_index ?? 0);
-      const bo = Number(b.sort_order ?? b.order_index ?? 0);
-      if (ao !== bo) return ao - bo;
-      return Number(a.question_id ?? a.id ?? 0) - Number(b.question_id ?? b.id ?? 0);
-    });
-
-    return filtered;
-  }, [allQuestions, diseaseQuestions, selectedDiseaseId]);
+    return (
+      d?.disease_name ??
+      d?.name ??
+      d?.disease_th ??
+      d?.disease_en ??
+      (selectedDiseaseId ? `Disease ${selectedDiseaseId}` : "-")
+    );
+  }, [diseases, selectedDiseaseId]);
 
   const currentQuestion = useMemo(() => {
     if (!selectedQuestionId) return null;
     return (
-      allQuestions.find((q) => String(q.question_id ?? q.id) === String(selectedQuestionId)) ||
+      questions.find((q) => String(q.question_id) === String(selectedQuestionId)) ||
       null
     );
-  }, [allQuestions, selectedQuestionId]);
+  }, [questions, selectedQuestionId]);
 
-  const currentQuestionText = currentQuestion ? qText(currentQuestion) : "";
-  const currentMaxScore = currentQuestion ? qMax(currentQuestion) : null;
+  const currentMaxScore = useMemo(() => {
+    const ms = currentQuestion?.max_score;
+    const n = Number(ms);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }, [currentQuestion]);
 
-  // ✅ NEW: ปิดปุ่มเพิ่มคำตอบ เมื่อ remaining <= 0 (มี max_score)
-  const addDisabled =
-    !selectedQuestionId ||
-    !selectedDiseaseId ||
-    (scoreSummary?.max_score != null && Number(scoreSummary?.remaining ?? 999999) <= 0);
+  // ✅ สรุปคะแนน: รวม / สูงสุด / คงเหลือ
+  const scoreSummary = useMemo(() => {
+    const total = answers.reduce((sum, a) => {
+      const v = Number(pick(a, ["risk_score", "score_value", "score"], 0) || 0);
+      return sum + (Number.isFinite(v) ? v : 0);
+    }, 0);
+    const max = currentMaxScore ?? null;
+    const remain = max == null ? null : Math.max(0, max - total);
+    return { total, max, remain };
+  }, [answers, currentMaxScore]);
 
-  const addDisabledTitle =
-    !selectedDiseaseId
-      ? "กรุณาเลือกโรคก่อน"
-      : !selectedQuestionId
-      ? "กรุณาเลือกคำถามก่อน"
-      : scoreSummary?.max_score != null && Number(scoreSummary?.remaining ?? 0) <= 0
-      ? "คะแนนคงเหลือเป็น 0 (เต็มแล้ว) จึงไม่สามารถเพิ่มคำตอบใหม่ได้"
-      : "";
+  const filteredAnswers = useMemo(() => {
+    const kw = String(keyword || "").trim().toLowerCase();
+    if (!kw) return answers;
+    return answers.filter((a) => {
+      const t = String(
+        pick(a, ["choice_text", "choice_label", "answer_text", "label"], "") || ""
+      ).toLowerCase();
+      return t.includes(kw);
+    });
+  }, [answers, keyword]);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [ds, qs, dqs] = await Promise.all([
-          readDiseases(),
-          readQuestions(),
-          readDiseaseQuestions(),
-        ]);
-        setDiseases(ds);
-        setAllQuestions(qs);
-        setDiseaseQuestions(dqs);
-      } catch (err) {
-        setError(err?.message || "โหลดข้อมูลเริ่มต้นไม่สำเร็จ");
-      }
-    })();
-  }, []);
-
-  async function loadAnswers(questionId = selectedQuestionId) {
-    if (!questionId || !selectedDiseaseId) {
+  async function loadAnswers() {
+    if (!selectedDiseaseId || !selectedQuestionId) {
       setAnswers([]);
-      setScoreSummary({ total: 0, max_score: null, remaining: null, exceed: false });
       return;
     }
-
     setLoading(true);
     setError("");
-
     try {
-      // 1) choices
-      const list = await readChoices(questionId);
-
-      // 2) scores map
+      const list = await readChoices(selectedQuestionId);
       const scoreMap = await fetchScoresMap({
         disease_id: selectedDiseaseId,
-        question_id: questionId,
+        question_id: selectedQuestionId,
       });
 
       const merged = list.map((c) => {
@@ -282,129 +284,103 @@ export default function AdminAnswersPage() {
       });
 
       setAnswers(merged);
-
-      // ✅ summary คะแนนรวม/คงเหลือ
-      const summary = calcSummaryFromScoreMap(scoreMap, currentMaxScore);
-      setScoreSummary(summary);
-    } catch (err) {
-      setError(err?.message || "โหลดคำตอบไม่สำเร็จ");
-      setAnswers([]);
-      setScoreSummary({
-        total: 0,
-        max_score: currentMaxScore ?? null,
-        remaining: null,
-        exceed: false,
-      });
+    } catch (e) {
+      setError(e?.message || String(e));
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    loadAnswers(selectedQuestionId);
+    loadAnswers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedQuestionId, selectedDiseaseId]);
-
-  // search
-  useEffect(() => {
-    let cancelled = false;
-    if (!selectedQuestionId || !selectedDiseaseId) return;
-
-    const kw = String(keyword ?? "").trim();
-    if (!kw) {
-      loadAnswers(selectedQuestionId);
-      return;
-    }
-
-    setSearching(true);
-    const timer = setTimeout(async () => {
-      try {
-        const list = await searchChoices({ keyword: kw, question_id: selectedQuestionId });
-
-        const scoreMap = await fetchScoresMap({
-          disease_id: selectedDiseaseId,
-          question_id: selectedQuestionId,
-        });
-
-        const merged = list.map((c) => {
-          const cid = String(c.choice_id ?? c.id ?? "");
-          const s = scoreMap.get(cid);
-
-          const risk_score =
-            s?.risk_score ??
-            s?.score_value ??
-            s?.score ??
-            c?.risk_score ??
-            c?.score_value ??
-            c?.score ??
-            0;
-
-          return {
-            ...c,
-            risk_score,
-            _score_id: s?.score_id ?? s?.id ?? null,
-          };
-        });
-
-        if (!cancelled) {
-          setAnswers(merged);
-
-          // ✅ summary ต้องเป็นทั้งคำถาม ไม่ใช่เฉพาะผลค้นหา
-          const summary = calcSummaryFromScoreMap(scoreMap, currentMaxScore);
-          setScoreSummary(summary);
-        }
-      } catch (err) {
-        if (!cancelled) setError(err?.message || "ค้นหาไม่สำเร็จ");
-      } finally {
-        if (!cancelled) setSearching(false);
-      }
-    }, 350);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [keyword, selectedQuestionId, selectedDiseaseId]);
+  }, [selectedQuestionId]);
 
   async function handleDelete(a) {
-    const id = pick(a, ["choice_id", "answer_id", "id"]);
-    if (!id) return alert("ไม่พบ ID ของคำตอบ");
-    if (!window.confirm("ยืนยันลบคำตอบนี้?")) return;
+    const id = pick(a, ["choice_id", "answer_id", "id"], null);
+    if (!id) return;
+    const ok = window.confirm("ยืนยันลบคำตอบนี้?");
+    if (!ok) return;
+
+    setLoading(true);
+    setError("");
+    try {
+      await deleteAnswerApi({ choice_id: Number(id) });
+      await loadAnswers();
+    } catch (e) {
+      setError(e?.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function openEditModal() {
+    if (!selectedQuestionId || !selectedDiseaseId) return;
 
     setError("");
     try {
-      await deleteChoice(id);
-      await loadAnswers();
+      const list = await readChoices(selectedQuestionId);
+
+      const scoreMap = await fetchScoresMap({
+        disease_id: selectedDiseaseId,
+        question_id: selectedQuestionId,
+      });
+
+      const merged = list.map((c) => {
+        const cid = String(c.choice_id ?? c.id ?? "");
+        const s = scoreMap.get(cid);
+
+        const risk_score =
+          s?.risk_score ??
+          s?.score_value ??
+          s?.score ??
+          c?.risk_score ??
+          c?.score_value ??
+          c?.score ??
+          0;
+
+        return {
+          ...c,
+          risk_score,
+          _score_id: s?.score_id ?? s?.id ?? null,
+        };
+      });
+
+      setEditOptions(
+        merged.map((c) => ({
+          choice_id: c.choice_id ?? c.id ?? null,
+          choice_label: String(c.choice_label ?? c.label ?? ""),
+          choice_text: String(c.choice_text ?? ""),
+          choices_text: String(c.choices_text ?? ""),
+          score_value: Number(c.risk_score ?? 0),
+          image_url: c.image_url ?? "",
+          score_id: c._score_id ?? null,
+        }))
+      );
+
+      setOpenEdit(true);
     } catch (err) {
-      setError(err?.message || "ลบคำตอบไม่สำเร็จ");
+      setError(err?.message || "โหลดคำตอบไม่สำเร็จ");
     }
   }
 
-  function handleDiseaseChange(e) {
-    const value = e.target.value;
-    setSelectedDiseaseId(value);
-    setSelectedQuestionId("");
-    setKeyword("");
-    setAnswers([]);
-    setScoreSummary({ total: 0, max_score: null, remaining: null, exceed: false });
-  }
-
-  function handleQuestionChange(e) {
-    const value = e.target.value;
-    setSelectedQuestionId(value);
+  function handleResetSearch() {
     setKeyword("");
   }
 
-  // auto pick first question when choose disease
-  useEffect(() => {
-    if (!selectedDiseaseId) return;
-    if (selectedQuestionId) return;
+  const addDisabled = useMemo(() => {
+    if (!selectedQuestionId || !selectedDiseaseId) return true;
+    if (scoreSummary.max == null) return false;
+    return scoreSummary.remain <= 0;
+  }, [selectedQuestionId, selectedDiseaseId, scoreSummary]);
 
-    const first = filteredQuestions[0];
-    if (first) setSelectedQuestionId(String(first.question_id ?? first.id));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDiseaseId, filteredQuestions]);
+  const summaryText = useMemo(() => {
+    const qType = questionTypeLabel(currentQuestion?.question_type);
+    const total = scoreSummary.total ?? 0;
+    const max = scoreSummary.max == null ? "-" : scoreSummary.max;
+    const remain = scoreSummary.remain == null ? "-" : scoreSummary.remain;
+    return { qType, total, max, remain };
+  }, [currentQuestion, scoreSummary]);
 
   return (
     <div className="page">
@@ -428,182 +404,202 @@ export default function AdminAnswersPage() {
 
       {error && <div className="alert error">{error}</div>}
 
+      {/* แถบ filter ด้านบน: เลือกโรค + เลือกคำถาม + ค้นหา */}
       <div
         className="card"
         style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}
       >
-        {/* เลือกโรค */}
-        <select value={selectedDiseaseId} onChange={handleDiseaseChange} style={{ minWidth: 220 }}>
-          <option value="">-- เลือกโรค --</option>
-          {diseases.map((d) => (
-            <option key={d.disease_id} value={d.disease_id}>
-              {d.disease_th ||
-                d.disease_en ||
-                d.name_th ||
-                d.name_en ||
-                d.disease_name ||
-                d.disease_slug ||
-                d.disease_id}
-            </option>
-          ))}
+        <select
+          value={selectedDiseaseId}
+          onChange={(e) => setSelectedDiseaseId(e.target.value)}
+          style={{ minWidth: 200 }}
+        >
+          {diseases.map((d) => {
+            const id = String(d.disease_id ?? d.id);
+            const name =
+              d.disease_name ?? d.name ?? d.disease_th ?? d.disease_en ?? `Disease ${id}`;
+            return (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            );
+          })}
         </select>
 
-        {/* เลือกคำถามของโรค */}
         <select
           value={selectedQuestionId}
-          onChange={handleQuestionChange}
-          style={{ minWidth: 320, flex: 1 }}
-          disabled={!selectedDiseaseId}
+          onChange={(e) => setSelectedQuestionId(e.target.value)}
+          style={{ minWidth: 260, flex: "1 1 420px" }}
         >
-          <option value="">-- เลือกคำถาม --</option>
-          {filteredQuestions.map((q) => (
-            <option key={q.question_id ?? q.id} value={q.question_id ?? q.id}>
-              {String(qText(q)).slice(0, 80)}
-            </option>
-          ))}
+          {questions.map((q) => {
+            const id = String(q.question_id ?? q.id);
+            const text = q.question_text || `Question ${id}`;
+            return (
+              <option key={id} value={id}>
+                {text}
+              </option>
+            );
+          })}
         </select>
 
-        {/* ค้นหา */}
         <input
-          placeholder="ค้นหาคำตอบ..."
+          placeholder="ค้นหาคำตอบ"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
-          style={{ flex: 1, minWidth: 180 }}
-          disabled={!selectedQuestionId}
+          style={{ flex: 1, minWidth: 260 }}
         />
 
-        {searching && <span style={{ fontSize: 12, color: "#6b7280" }}>กำลังค้นหา...</span>}
-
-        <button className="btn ghost" onClick={() => setKeyword("")} disabled={!selectedQuestionId}>
+        <button className="btn ghost" onClick={handleResetSearch}>
           รีเซ็ต
         </button>
 
-        {/* ✅ ปุ่มเพิ่มคำตอบ: ปิดเมื่อ remaining <= 0 */}
         <button
           className="btn"
           onClick={() => setOpenCreate(true)}
-          disabled={addDisabled}
-          title={addDisabledTitle}
+          disabled={addDisabled || loading}
+          title={addDisabled ? "คะแนนคงเหลือไม่พอ หรือยังไม่ได้เลือกโรค/คำถาม" : ""}
         >
           + เพิ่มคำตอบ
         </button>
+
+        {/* ✅ เพิ่มแถบสรุปคะแนน "เหมือนแนวหน้า Questions" */}
+        <div
+          style={{
+            width: "100%",
+            marginTop: 6,
+            fontSize: 14,
+            color: "#222",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 14,
+            alignItems: "center",
+          }}
+        >
+          <span>
+            <b>โรค:</b> {selectedDiseaseName}
+          </span>
+          <span>
+            <b>ประเภทคำถาม:</b> {summaryText.qType}
+          </span>
+          <span>
+            <b>คะแนนรวม:</b> {summaryText.total}
+          </span>
+          <span>
+            <b>คะแนนสูงสุด:</b> {summaryText.max}
+          </span>
+          <span>
+            <b>คงเหลือ:</b> {summaryText.remain}
+          </span>
+        </div>
       </div>
 
-      {/* สรุปคะแนนรวม/คงเหลือ */}
-      {selectedDiseaseId && selectedQuestionId && (
-        <div className="card" style={{ marginTop: 10 }}>
-          <div style={{ fontWeight: 800, marginBottom: 6 }}>สรุปคะแนนของคำถาม</div>
+      {/* ตาราง */}
+      <div className="card" style={{ overflowX: "auto" }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th style={centerCell}>ID</th>
+              <th style={centerCell}>ชื่อโรค</th>
+              <th style={centerCell}>คำถาม</th>
+              <th>คำตอบ</th>
+              <th>คำแนะนำ</th>
+              <th style={centerCell}>รูป</th>
+              <th style={centerCell}>คะแนน</th>
+              <th style={centerCell}>จัดการ</th>
+            </tr>
+          </thead>
 
-          <div style={{ whiteSpace: "pre-wrap", marginBottom: 8 }}>
-            <b>คำถาม:</b> {currentQuestionText || "-"}
-          </div>
-
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 14, alignItems: "center" }}>
-            <div>
-              <div style={{ fontSize: 12, color: "#6b7280" }}>คะแนนรวมของคำตอบทั้งหมด</div>
-              <div style={{ fontSize: 20, fontWeight: 900 }}>{scoreSummary.total}</div>
-            </div>
-
-            {scoreSummary.max_score ? (
-              <>
-                <div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>คะแนนสูงสุด (max_score)</div>
-                  <div style={{ fontSize: 20, fontWeight: 900 }}>{scoreSummary.max_score}</div>
-                </div>
-
-                <div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>คะแนนคงเหลือ</div>
-                  <div style={{ fontSize: 20, fontWeight: 900 }}>{scoreSummary.remaining}</div>
-                </div>
-
-                {scoreSummary.exceed && (
-                  <div className="alert error" style={{ margin: 0 }}>
-                    คะแนนรวมเกินกำหนด (เกิน {Math.abs(scoreSummary.remaining)} คะแนน)
-                  </div>
-                )}
-              </>
-            ) : (
-              <div style={{ fontSize: 12, color: "#6b7280" }}>
-                (ยังไม่ได้กำหนด max_score สำหรับคำถามนี้)
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="card" style={{ marginTop: 10 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h3 style={{ margin: 0 }}>รายการคำตอบ</h3>
-          {loading && <span style={{ fontSize: 12, color: "#6b7280" }}>กำลังโหลด...</span>}
-        </div>
-
-        <div style={{ overflowX: "auto", marginTop: 10 }}>
-          <table className="table">
-            <thead>
+          <tbody>
+            {filteredAnswers.length === 0 ? (
               <tr>
-                <th style={{ width: 80 }}>ID</th>
-                <th>คำตอบ</th>
-                <th style={{ width: 140 }}>คะแนน</th>
-                <th style={{ width: 220 }}>จัดการ</th>
+                <td colSpan={8} style={{ textAlign: "center", padding: 16 }}>
+                  {selectedQuestionId
+                    ? answers.length
+                      ? "ไม่พบคำตอบที่ค้นหา"
+                      : "ไม่มีคำตอบ"
+                    : "กรุณาเลือกโรคและคำถาม"}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {answers.length === 0 ? (
-                <tr>
-                  <td colSpan={4} style={{ color: "#6b7280" }}>
-                    {selectedQuestionId ? "ไม่มีคำตอบ" : "กรุณาเลือกโรคและคำถาม"}
-                  </td>
-                </tr>
-              ) : (
-                answers.map((a) => {
-                  const id = pick(a, ["choice_id", "answer_id", "id"], "-");
-                  const label = pick(a, ["choice_label", "answer_text", "label"], "-");
-                  const score = pick(a, ["risk_score", "score_value", "score"], 0);
+            ) : (
+              filteredAnswers.map((a, idx) => {
+                const id = pick(a, ["choice_id", "answer_id", "id"], "-");
+                const label = pick(a, ["choice_label", "answer_text", "label"], "-");
+                const advice = pick(a, ["choices_text", "choice_text"], "-");
+                const score = pick(a, ["risk_score", "score_value", "score"], 0);
+                const imgSrc = pick(a, ["image_url", "imageUrl"], "");
 
-                  return (
-                    <tr key={String(id)}>
-                      <td>{id}</td>
-                      <td style={{ whiteSpace: "pre-wrap" }}>{label}</td>
-                      <td>{score}</td>
-                      <td>
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          <button className="btn" onClick={() => setEditAnswer(a)}>
-                            แก้ไข
-                          </button>
-                          <button className="btn danger" onClick={() => handleDelete(a)}>
-                            ลบ
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                return (
+                  <tr key={`${id}-${idx}`}>
+                    <td style={centerCell}>{id}</td>
+                    <td style={centerCell}>{selectedDiseaseName}</td>
+                    <td style={{ whiteSpace: "pre-wrap" }}>
+                      {currentQuestion?.question_text || "-"}
+                    </td>
+                    <td style={{ whiteSpace: "pre-wrap" }}>{label}</td>
+                    <td style={{ whiteSpace: "pre-wrap" }}>{advice}</td>
+
+                    <td style={centerCell}>
+                      {imgSrc ? (
+                        <img
+                          src={imgSrc}
+                          alt={`ans-${id}`}
+                          style={{
+                            width: 56,
+                            height: 56,
+                            objectFit: "cover",
+                            borderRadius: 10,
+                            border: "1px solid #eee",
+                          }}
+                          onError={(e) => (e.currentTarget.style.display = "none")}
+                        />
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+
+                    <td style={centerCell}>{score}</td>
+
+                    <td style={centerCell}>
+                      <div style={btnCell}>
+                        <button className="btn xs" onClick={openEditModal}>
+                          แก้ไข
+                        </button>
+                        <button className="btn xs danger" onClick={() => handleDelete(a)}>
+                          ลบ
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
       </div>
 
+      {/* Modals */}
       {openCreate && (
         <CreateAnswerModal
+          open={openCreate}
           question={currentQuestion}
           diseaseId={selectedDiseaseId}
           onClose={() => setOpenCreate(false)}
-          onSuccess={async () => {
+          onCreated={async () => {
             setOpenCreate(false);
             await loadAnswers();
           }}
         />
       )}
 
-      {editAnswer && (
+      {openEdit && (
         <EditAnswerModal
-          answer={editAnswer}
+          open={openEdit}
           question={currentQuestion}
           diseaseId={selectedDiseaseId}
-          onClose={() => setEditAnswer(null)}
-          onSuccess={async () => {
-            setEditAnswer(null);
+          existingOptions={editOptions}
+          onClose={() => setOpenEdit(false)}
+          onUpdated={async () => {
+            setOpenEdit(false);
             await loadAnswers();
           }}
         />

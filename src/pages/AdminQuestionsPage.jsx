@@ -6,6 +6,7 @@ import { searchQuestionsApi } from "../api/searchQuestionsApi";
 import { deleteQuestionApi } from "../api/deleteQuestionApi";
 import { readDiseasesApi } from "../api/readDiseasesApi";
 import { readDiseaseQuestionsApi } from "../api/readDiseaseQuestionsApi";
+import { API_BASE } from "../api/apiClient";
 
 import CreateQuestionModal from "../components/CreateQuestionModal";
 import EditQuestionModal from "../components/EditQuestionModal";
@@ -29,6 +30,39 @@ const QUESTION_TYPE_LABELS = {
   multi: "ตัวเลือก",
   numeric: "ตัวเลข",
 };
+
+// ✅ root ของ backend สำหรับแปลง path รูปให้เป็น URL
+const BACKEND_ROOT = String(API_BASE || "").replace(/\/api\/?$/, "");
+
+function resolveBackendUrl(raw) {
+  if (!raw) return "";
+  const s = String(raw).trim();
+  if (!s) return "";
+
+  // normalize windows backslashes
+  const normalized = s.replace(/\\/g, "/");
+
+  // ถ้าเป็น URL เต็มอยู่แล้ว
+  if (/^https?:\/\//i.test(normalized)) return normalized;
+
+  // ถ้าเป็น absolute path เช่น /crud/uploads/... หรือ /uploads/...
+  if (normalized.startsWith("/")) {
+    // เคส /uploads/... ให้ชี้ใต้ /crud/uploads/...
+    if (normalized.startsWith("/uploads/")) return `${BACKEND_ROOT}${normalized}`;
+    // เคส /crud/uploads/... หรือ path อื่น ๆ → ใช้ origin ของ BACKEND_ROOT
+    try {
+      return new URL(normalized, BACKEND_ROOT + "/").href;
+    } catch {
+      return normalized;
+    }
+  }
+
+  // relative เช่น uploads/question_images/xxx.jpg
+  if (normalized.startsWith("uploads/")) return `${BACKEND_ROOT}/${normalized}`;
+
+  // เผื่อเก็บมาแค่ชื่อไฟล์/โฟลเดอร์ย่อย
+  return `${BACKEND_ROOT}/uploads/${normalized}`;
+}
 
 function getId(q) {
   return q.question_id ?? q.id ?? 0;
@@ -57,16 +91,28 @@ function sortByIdAsc(list) {
   return [...list].sort((a, b) => Number(getId(a)) - Number(getId(b)));
 }
 
-// ใช้ตอน filter ตามโรค (ใช้ field disease_ids: "1,2,3")
+// ใช้ตอน filter ตามโรค (รองรับ pivot disease_ids และ legacy disease_id)
 function matchesDisease(q, diseaseId) {
-  if (!diseaseId) return true; // ไม่กรอง
+  // ไม่กรอง
+  if (diseaseId === "" || diseaseId === null || diseaseId === undefined) return true;
+
+  const target = String(diseaseId);
+
+  // 1) แบบใหม่: disease_ids (จาก pivot disease_questions) เช่น "1,2,3"
   const raw = q.disease_ids ?? q.diseaseIds ?? "";
-  if (!raw) return false;
-  const ids = String(raw)
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return ids.includes(String(diseaseId));
+  const ids = raw
+    ? String(raw)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : [];
+
+  // 2) แบบเดิม: disease_id เดี่ยว
+  const legacy = q.disease_id ?? q.diseaseId;
+  const legacyStr =
+    legacy === null || legacy === undefined || legacy === "" ? "" : String(legacy);
+
+  return ids.includes(target) || (legacyStr && legacyStr === target);
 }
 
 function filterQuestions(baseList, diseaseId) {
@@ -116,7 +162,9 @@ function attachDiseaseIds(questions, diseaseQuestions) {
   dqList.forEach((dq) => {
     const qid = dq.question_id;
     const did = dq.disease_id;
-    if (!qid || !did) return;
+    // ✅ อย่าตัด disease_id = 0 (เคยพลาดเพราะ 0 เป็น falsy)
+    if (qid === null || qid === undefined || String(qid).trim() === "") return;
+    if (did === null || did === undefined || String(did).trim() === "") return;
 
     const key = String(qid);
     if (!map.has(key)) map.set(key, new Set());
@@ -151,11 +199,12 @@ function lookupDiseaseName(id, diseases) {
 }
 
 // แปลง questions -> rows สำหรับแสดงในตาราง
-// ถ้า selectedDiseaseId ว่าง → แตกหลายแถว (คำถาม × โรค)
+// ถ้า selectedDiseaseId ว่าง → แตกหลายแถว (คำถาม × โรค/กลุ่ม)
 // ถ้าเลือกโรค → แถวละคำถามเดียวของโรคนั้น
 function buildDisplayRows(questions, diseases, selectedDiseaseId) {
   const rows = [];
   const qList = Array.isArray(questions) ? questions : [];
+  const selected = selectedDiseaseId !== "" ? String(selectedDiseaseId) : "";
 
   for (const q of qList) {
     const rawIds = q.disease_ids ?? q.diseaseIds ?? "";
@@ -164,9 +213,17 @@ function buildDisplayRows(questions, diseases, selectedDiseaseId) {
       .map((s) => s.trim())
       .filter(Boolean);
 
-    // ยังไม่ผูกโรคเลย
-    if (ids.length === 0) {
-      if (selectedDiseaseId) continue;
+    // ✅ fallback: ถ้าไม่ได้ผูกผ่าน pivot ให้ดู disease_id เดี่ยว
+    const legacy = q.disease_id ?? q.diseaseId;
+    const legacyStr =
+      legacy === null || legacy === undefined || legacy === "" ? "" : String(legacy);
+
+    // เลือกชุด id ที่จะใช้แสดงผล
+    const effectiveIds = ids.length > 0 ? ids : legacyStr ? [legacyStr] : [];
+
+    // ยังไม่ผูกโรคเลยจริง ๆ
+    if (effectiveIds.length === 0) {
+      if (selected) continue;
       rows.push({
         q,
         diseaseId: null,
@@ -175,17 +232,16 @@ function buildDisplayRows(questions, diseases, selectedDiseaseId) {
       continue;
     }
 
-    if (selectedDiseaseId) {
-      const target = String(selectedDiseaseId);
-      if (!ids.includes(target)) continue;
+    if (selected) {
+      if (!effectiveIds.includes(selected)) continue;
       rows.push({
         q,
-        diseaseId: target,
-        diseaseName: lookupDiseaseName(target, diseases),
+        diseaseId: selected,
+        diseaseName: lookupDiseaseName(selected, diseases),
       });
     } else {
-      // โหมด "ทุกโรค" → แตกหลายแถว แถวละ 1 โรค
-      ids.forEach((id) => {
+      // โหมด "ทุกโรค" → แตกหลายแถว แถวละ 1 โรค/กลุ่มคำถาม
+      effectiveIds.forEach((id) => {
         rows.push({
           q,
           diseaseId: id,
@@ -373,6 +429,7 @@ export default function AdminQuestionsPage() {
           style={{ minWidth: 200 }}
         >
           <option value="">-- ทุกโรค --</option>
+
           {diseases.map((d) => (
             <option key={d.disease_id} value={d.disease_id}>
               {d.disease_th ||
@@ -417,6 +474,9 @@ export default function AdminQuestionsPage() {
                 <th style={centerCell}>ประเภทคำถาม</th>
                 <th>คำถาม</th>
 
+                {/* ✅ เพิ่มคอลัมน์รูป */}
+                <th style={centerCell}>รูป</th>
+
                 {/* ✅ คะแนนสูงสุดถัดจากคำถาม */}
                 <th style={centerCell}>คะแนนสูงสุด</th>
 
@@ -432,7 +492,7 @@ export default function AdminQuestionsPage() {
                   const q = row.q;
                   const id = getId(q);
 
-                  // ชื่อโรค
+                  // ชื่อโรค/กลุ่มคำถาม
                   const diseaseName =
                     row.diseaseName ||
                     getDiseaseNamesFromIds(q, diseases) ||
@@ -448,6 +508,15 @@ export default function AdminQuestionsPage() {
                   const order = getOrder(q);
                   const active = getActive(q);
 
+                  // ✅ รูป (ใช้ image_url เป็นหลัก)
+                  const rawImg =
+                    q.image_url ??
+                    q.imageUrl ??
+                    q.example_image ??
+                    q.exampleImage ??
+                    "";
+                  const imgSrc = resolveBackendUrl(rawImg);
+
                   return (
                     <tr key={`${id}-${row.diseaseId ?? "none"}-${idx}`}>
                       <td style={centerCell}>{id}</td>
@@ -455,6 +524,29 @@ export default function AdminQuestionsPage() {
                       <td style={centerCell}>{questionTypeLabel}</td>
 
                       <td style={{ whiteSpace: "pre-wrap" }}>{text}</td>
+
+                      {/* ✅ cell แสดงรูป */}
+                      <td style={centerCell}>
+                        {imgSrc ? (
+                          <a href={imgSrc} target="_blank" rel="noreferrer">
+                            <img
+                              src={imgSrc}
+                              alt={`q-${id}`}
+                              style={{
+                                width: 56,
+                                height: 56,
+                                objectFit: "cover",
+                                borderRadius: 10,
+                                border: "1px solid rgba(255,255,255,0.08)",
+                                display: "block",
+                                margin: "0 auto",
+                              }}
+                            />
+                          </a>
+                        ) : (
+                          <span style={{ color: "#9ca3af" }}>-</span>
+                        )}
+                      </td>
 
                       <td style={centerCell}>{maxScore}</td>
 
@@ -486,7 +578,6 @@ export default function AdminQuestionsPage() {
 
       {openCreate && (
         <CreateQuestionModal
-          // ✅ NEW: ให้ modal ตั้งค่า sort_order ต่อจากล่าสุดอัตโนมัติ
           initialDiseaseId={selectedDiseaseId}
           initialSortOrder={getNextSortOrderForDisease(selectedDiseaseId)}
           getNextSortOrder={getNextSortOrderForDisease}

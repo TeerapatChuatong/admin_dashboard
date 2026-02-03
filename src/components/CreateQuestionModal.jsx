@@ -1,4 +1,4 @@
-// src/components/CreateQuestionModal.jsx
+// CreateQuestionModal.jsx
 import React, { useEffect, useState } from "react";
 import { createQuestionApi } from "../api/createQuestionApi";
 import { readDiseasesApi } from "../api/readDiseasesApi";
@@ -9,29 +9,56 @@ const QUESTION_TYPES = [
   { value: "numeric", label: "ตัวเลข" },
 ];
 
+// ✅ เพิ่ม: แหล่งคำตอบ (ใช้เฉพาะคำถาม disease_id=8)
+const ANSWER_SOURCES = [
+  { value: "manual", label: "เพิ่มคำตอบเอง (กรอกเองในหน้าจัดการคำตอบ)" },
+  { value: "chemicals", label: "ดรอปดาวน์จากตารางสารเคมี" },
+];
+
+// ✅ FIX: ให้ modal-card เลื่อนขึ้นลงได้เมื่อมีรูป/เนื้อหาเยอะ (คง UI เดิม)
+const modalCardScrollStyle = {
+  maxHeight: "calc(100vh - 48px)",
+  overflowY: "auto",
+  WebkitOverflowScrolling: "touch",
+};
+
+function toInt(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export default function CreateQuestionModal({
+  initialDiseaseId = "",
+  initialSortOrder = 0,
+  getNextSortOrder,
   onClose,
   onSuccess,
-  // ✅ NEW: ตั้งค่าเริ่มต้นจากหน้ารายการ (ถ้าเลือกโรคอยู่)
-  initialDiseaseId = "",
-  // ✅ NEW: sort_order เริ่มต้น (ปกติ = ต่อจากลำดับล่าสุด)
-  initialSortOrder = null,
-  // ✅ NEW: ฟังก์ชันคำนวณ sort_order ถัดไป (คำนวณตามโรคที่เลือก)
-  getNextSortOrder,
 }) {
   const [diseases, setDiseases] = useState([]);
 
-  // ✅ NEW: ถ้าผู้ใช้พิมพ์ลำดับเอง → ไม่ให้ auto ไปทับ
-  const [autoOrder, setAutoOrder] = useState(true);
+  // ✅ preview รูปจากไฟล์
+  const [localPreviewUrl, setLocalPreviewUrl] = useState("");
 
-  // ✅ เก็บ type ให้ชัด: disease_id เป็น string (เพราะมาจาก select)
-  // ✅ max_score / sort_order เป็น number จริง
   const [form, setForm] = useState({
-    disease_id: initialDiseaseId ? String(initialDiseaseId) : "",
+    disease_id: initialDiseaseId ?? "",
     question_text: "",
     question_type: "yes_no",
-    max_score: 5,
-    sort_order: Number.isFinite(Number(initialSortOrder)) ? Number(initialSortOrder) : 0,
+
+    // ✅ answer_source (manual|chemicals)
+    answer_source: "manual",
+
+    // ✅ meta (ยังคงไว้ ไม่เปลี่ยนโครงเดิม)
+    answer_scope: "scan",
+    purpose: "severity",
+
+    // ✅ รูปประกอบ
+    example_image: "",
+    example_image_file: null,
+
+    // ✅ เดิมบังคับ >=1 แต่มีเคส max_score=0 ได้ (เช่นคำถามสารเคมี)
+    max_score: 0,
+
+    sort_order: toInt(initialSortOrder, 0),
     is_active: 1,
   });
 
@@ -40,29 +67,35 @@ export default function CreateQuestionModal({
 
   useEffect(() => {
     readDiseasesApi()
-      .then((res) => {
-        // ✅ รองรับทั้งกรณี API คืนเป็น array ตรง ๆ หรือ { data: [...] }
-        const arr = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
-        setDiseases(arr);
-      })
-      .catch((e) => setError(e?.message || "โหลดโรคไม่สำเร็จ"));
+      .then((arr) => setDiseases(Array.isArray(arr) ? arr : []))
+      .catch((e) => setError(e.message || "โหลดโรคไม่สำเร็จ"));
   }, []);
 
-  // ✅ NEW: เมื่อเลือกโรค (disease_id) แล้ว ให้ sort_order ต่อจากลำดับล่าสุดของโรคนั้นอัตโนมัติ
+  // ✅ ทำ preview เมื่อเลือกไฟล์
   useEffect(() => {
-    if (!autoOrder) return;
-    if (!getNextSortOrder) return;
-    if (!form.disease_id) return;
+    if (!(form.example_image_file instanceof File)) {
+      setLocalPreviewUrl("");
+      return;
+    }
+    const url = URL.createObjectURL(form.example_image_file);
+    setLocalPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [form.example_image_file]);
 
-    const next = getNextSortOrder(form.disease_id);
-    if (!Number.isFinite(Number(next))) return;
-
-    setForm((prev) => {
-      const n = Number(next);
-      if (Number(prev.sort_order) === n) return prev;
-      return { ...prev, sort_order: n };
-    });
-  }, [form.disease_id, autoOrder, getNextSortOrder]);
+  // ✅ enforce: ถ้าไม่ใช่ disease_id=8 → answer_source ต้องเป็น manual
+  // ✅ enforce: ถ้าเลือก chemicals → question_type เป็น multi
+  useEffect(() => {
+    const did = Number(form.disease_id);
+    if (did !== 8) {
+      if (form.answer_source !== "manual") {
+        setForm((prev) => ({ ...prev, answer_source: "manual" }));
+      }
+      return;
+    }
+    if (form.answer_source === "chemicals" && form.question_type !== "multi") {
+      setForm((prev) => ({ ...prev, question_type: "multi" }));
+    }
+  }, [form.disease_id, form.answer_source, form.question_type]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -70,37 +103,43 @@ export default function CreateQuestionModal({
     setError("");
 
     try {
-      const disease_id_num = Number(form.disease_id);
-      const sort_order_num = Number.isFinite(Number(form.sort_order)) ? Number(form.sort_order) : 0;
-      const max_score_num = Number.isFinite(Number(form.max_score)) ? Number(form.max_score) : NaN;
+      if (String(form.disease_id) === "") throw new Error("กรุณาเลือก (ทั้งสวน/โรค)");
+      if (!String(form.question_text || "").trim()) throw new Error("กรุณากรอกข้อความคำถาม");
 
-      const question_text_trim = String(form.question_text || "").trim();
-
-      if (!disease_id_num) {
-        throw new Error("กรุณาเลือกโรค");
-      }
-      if (!question_text_trim) {
-        throw new Error("กรุณากรอกข้อความคำถาม");
+      const maxScoreNum = Number(form.max_score);
+      if (!Number.isFinite(maxScoreNum) || maxScoreNum < 0) {
+        throw new Error("คะแนนสูงสุดต้องไม่ติดลบ");
       }
 
-      // ✅ ตอนนี้ตั้ง UI min=1 (บังคับต้องกำหนดเพดานคะแนน)
-      // ถ้าอยากให้ 0 = ไม่จำกัด ให้แก้ input min เป็น 0 และแก้เงื่อนไขนี้เป็น max_score_num >= 0
-      if (!Number.isFinite(max_score_num) || max_score_num < 1) {
-        throw new Error("คะแนนสูงสุดของคำถามต้องเป็นตัวเลขตั้งแต่ 1 ขึ้นไป");
+      let sortOrderNum = Number(form.sort_order);
+      if (!Number.isFinite(sortOrderNum) || sortOrderNum < 0) sortOrderNum = 0;
+
+      // ถ้ามีฟังก์ชันคำนวณลำดับให้ใช้ (คง logic เดิม)
+      if (typeof getNextSortOrder === "function") {
+        sortOrderNum = toInt(getNextSortOrder(form.disease_id), sortOrderNum);
       }
+
+      const example_image_trim = String(form.example_image || "").trim();
+
+      const did = Number(form.disease_id);
+      const answer_source = did === 8 ? String(form.answer_source || "manual") : "manual";
 
       await createQuestionApi({
         ...form,
-        disease_id: disease_id_num, // ✅ ส่งเป็น number ชัด ๆ
-        question_text: question_text_trim, // ✅ trim กันช่องว่างล้วน
-        max_score: max_score_num,
-        sort_order: sort_order_num,
-        order_no: sort_order_num, // เผื่อ backend เก่า
+        disease_id: did,
+        question_text: String(form.question_text),
+        question_type: answer_source === "chemicals" ? "multi" : String(form.question_type),
+        answer_source,
+        example_image: example_image_trim ? example_image_trim : null,
+        max_score: Number(maxScoreNum),
+        sort_order: Number(sortOrderNum) || 0,
+        is_active: Number(form.is_active),
+        order_no: Number(sortOrderNum) || 0,
       });
 
       onSuccess && onSuccess();
     } catch (err) {
-      setError(err?.message || "เพิ่มคำถามไม่สำเร็จ");
+      setError(err.message || "เพิ่มคำถามไม่สำเร็จ");
     } finally {
       setSaving(false);
     }
@@ -108,7 +147,7 @@ export default function CreateQuestionModal({
 
   return (
     <div className="modal-backdrop">
-      <div className="modal-card">
+      <div className="modal-card" style={modalCardScrollStyle}>
         <h2>เพิ่มคำถาม</h2>
         {error && <div className="alert error">{error}</div>}
 
@@ -117,16 +156,13 @@ export default function CreateQuestionModal({
             โรค / กลุ่มคำถาม
             <select
               value={form.disease_id}
-              onChange={(e) => {
-                // ✅ NEW: เลือกโรคใหม่ → กลับมาใช้ autoOrder แล้วคำนวณลำดับให้
-                setAutoOrder(true);
-                setForm({ ...form, disease_id: e.target.value });
-              }}
+              onChange={(e) => setForm({ ...form, disease_id: e.target.value })}
               required
             >
               <option value="" disabled>
-                -- เลือกโรค --
+                -- เลือก (ทั้งสวน/โรค) --
               </option>
+
               {diseases.map((d) => (
                 <option key={d.disease_id} value={d.disease_id}>
                   {d.disease_th ||
@@ -154,19 +190,99 @@ export default function CreateQuestionModal({
             </select>
           </label>
 
-          {/* ✅ คะแนนสูงสุด */}
+          {/* ✅ เฉพาะ disease_id=8: เลือก answer_source */}
+          {Number(form.disease_id) === 8 && (
+            <label>
+              รูปแบบคำตอบ (เฉพาะคำถามสารเคมี)
+              <select
+                value={form.answer_source}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setForm((prev) => ({
+                    ...prev,
+                    answer_source: v,
+                    question_type: v === "chemicals" ? "multi" : prev.question_type,
+                  }));
+                }}
+              >
+                {ANSWER_SOURCES.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+
+              {String(form.answer_source) === "chemicals" && (
+                <div style={{ marginTop: 6, fontSize: 12, color: "#9ca3af" }}>
+                  คำถามนี้จะดึงรายการสารเคมีจากตารางสารเคมี (ไม่ต้องเพิ่มคำตอบในหน้าจัดการคำตอบ)
+                </div>
+              )}
+            </label>
+          )}
+
+          {/* ✅ รูปประกอบ: URL + เลือกไฟล์ */}
+          <label>
+            รูปประกอบ (URL)
+            <input
+              type="text"
+              placeholder="วางลิงก์รูป (ไม่ใส่ก็ได้)"
+              value={form.example_image}
+              onChange={(e) => setForm({ ...form, example_image: e.target.value })}
+            />
+
+            <div style={{ marginTop: 8 }}>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const f = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+                  setForm({ ...form, example_image_file: f });
+                }}
+              />
+
+              {form.example_image_file && (
+                <button
+                  type="button"
+                  className="btn ghost"
+                  style={{ marginTop: 8 }}
+                  onClick={() => setForm({ ...form, example_image_file: null })}
+                >
+                  ลบไฟล์ที่เลือก
+                </button>
+              )}
+            </div>
+
+            {localPreviewUrl ? (
+              <div style={{ marginTop: 8 }}>
+                <img
+                  src={localPreviewUrl}
+                  alt="ตัวอย่างรูปคำถาม"
+                  style={{ maxWidth: "100%", maxHeight: 180, borderRadius: 8 }}
+                />
+              </div>
+            ) : (
+              String(form.example_image || "").trim() && (
+                <div style={{ marginTop: 8 }}>
+                  <img
+                    src={String(form.example_image).trim()}
+                    alt="ตัวอย่างรูปคำถาม"
+                    style={{ maxWidth: "100%", maxHeight: 180, borderRadius: 8 }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                </div>
+              )
+            )}
+          </label>
+
           <label>
             คะแนนสูงสุดของคำถาม
             <input
               type="number"
-              min="1"
+              min="0"
               value={form.max_score}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  max_score: parseInt(e.target.value || "0", 10),
-                })
-              }
+              onChange={(e) => setForm({ ...form, max_score: e.target.value })}
               required
             />
           </label>
@@ -187,18 +303,10 @@ export default function CreateQuestionModal({
               type="number"
               min="0"
               value={form.sort_order}
-              onChange={(e) => {
-                // ✅ NEW: ผู้ใช้แก้เลขเอง → ปิด autoOrder กันทับค่า
-                setAutoOrder(false);
-                setForm({
-                  ...form,
-                  sort_order: parseInt(e.target.value || "0", 10),
-                });
-              }}
+              onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
             />
           </label>
 
-          {/* สถานะคำถาม */}
           <div className="status-field">
             <span className="status-label">
               <h3>สถานะคำถาม</h3>
@@ -230,18 +338,13 @@ export default function CreateQuestionModal({
 
           <div className="form-actions">
             <button className="btn" type="submit" disabled={saving}>
-              {saving ? "กำลังบันทึก..." : "เพิ่มคำถาม"}
+              {saving ? "กำลังบันทึก..." : "บันทึก"}
             </button>
-            <button className="btn ghost" type="button" onClick={onClose} disabled={saving}>
+            <button className="btn ghost" type="button" onClick={onClose}>
               ยกเลิก
             </button>
           </div>
         </form>
-
-        {/* ถ้าคุณอยากให้ 0 = ไม่จำกัด:
-            1) เปลี่ยน input max_score min="0"
-            2) เปลี่ยน validation เป็น max_score_num >= 0
-        */}
       </div>
     </div>
   );

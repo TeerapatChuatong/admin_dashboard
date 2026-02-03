@@ -132,6 +132,132 @@ export default function AdminHomePage() {
               <button className="btn xs">ไปหน้าคำอธิบายโรค</button>
             </div>
           </Link>
+
+          {/* ✅ เมนูใหม่: สารเคมี */}
+          <Link
+            to="/admin/chemicals"
+            className="card"
+            style={{
+              textDecoration: "none",
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              border: "1px solid #f3f4f6",
+            }}
+          >
+            <h2 style={{ margin: 0 }}>จัดการสารเคมี</h2>
+            <span style={{ fontSize: 13, color: "#6b7280" }}>
+              เพิ่ม / แก้ไข / ลบ / ค้นหา สารเคมี + ผูก MOA
+            </span>
+            <div style={{ marginTop: 8 }}>
+              <button className="btn xs">ไปหน้าสารเคมี</button>
+            </div>
+          </Link>
+
+          {/* ✅ เพิ่มการ์ดเมนู: จัดการกลุ่ม MOA */}
+          <Link
+            to="/admin/moa-groups"
+            className="card"
+            style={{
+              textDecoration: "none",
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              border: "1px solid #f3f4f6",
+            }}
+          >
+            <h2 style={{ margin: 0 }}>จัดการกลุ่ม MOA</h2>
+            <span style={{ fontSize: 13, color: "#6b7280" }}>
+              เพิ่ม / แก้ไข / ลบ / ค้นหา กลุ่ม MOA (เช่น 1A, 2A, 1B, 2B)
+            </span>
+            <div style={{ marginTop: 8 }}>
+              <button className="btn xs">ไปหน้ากลุ่ม MOA</button>
+            </div>
+          </Link>
+
+          {/* ✅ เมนูใหม่: แผนสลับกลุ่ม MOA */}
+          <Link
+            to="/admin/moa-plan"
+            className="card"
+            style={{
+              textDecoration: "none",
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              border: "1px solid #f3f4f6",
+            }}
+          >
+            <h2 style={{ margin: 0 }}>แผนสลับกลุ่ม MOA</h2>
+            <span style={{ fontSize: 13, color: "#6b7280" }}>
+              ตั้งค่า/กำหนดแผนการหมุนเวียนกลุ่ม MOA ตามรอบการพ่น
+            </span>
+            <div style={{ marginTop: 8 }}>
+              <button className="btn xs">ไปหน้า MOA Plan</button>
+            </div>
+          </Link>
+
+          {/* ✅ เมนูใหม่: สารเคมีที่อนุญาตต่อกลุ่ม */}
+          <Link
+            to="/admin/allowed-chemicals"
+            className="card"
+            style={{
+              textDecoration: "none",
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              border: "1px solid #f3f4f6",
+            }}
+          >
+            <h2 style={{ margin: 0 }}>สารเคมีที่อนุญาตต่อกลุ่ม</h2>
+            <span style={{ fontSize: 13, color: "#6b7280" }}>
+              กำหนดรายการสารเคมีที่ใช้ได้ในแต่ละกลุ่ม MOA
+            </span>
+            <div style={{ marginTop: 8 }}>
+              <button className="btn xs">ไปหน้า Allowed</button>
+            </div>
+          </Link>
+
+          {/* ✅ เมนูใหม่: กฎระดับความเสี่ยง */}
+          <Link
+            to="/admin/risk-level-rules"
+            className="card"
+            style={{
+              textDecoration: "none",
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              border: "1px solid #f3f4f6",
+            }}
+          >
+            <h2 style={{ margin: 0 }}>กฎระดับความเสี่ยง</h2>
+            <span style={{ fontSize: 13, color: "#6b7280" }}>
+              จัดการเงื่อนไข/กฎการเลือกกลุ่ม/สาร ตามระดับความเสี่ยงของโรค
+            </span>
+            <div style={{ marginTop: 8 }}>
+              <button className="btn xs">ไปหน้า Rules</button>
+            </div>
+          </Link>
+
+          {/* ✅ เมนูใหม่: สรุปการสลับ MOA */}
+          <Link
+            to="/admin/rotation-summary"
+            className="card"
+            style={{
+              textDecoration: "none",
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              border: "1px solid #f3f4f6",
+            }}
+          >
+            <h2 style={{ margin: 0 }}>สรุปการสลับ MOA</h2>
+            <span style={{ fontSize: 13, color: "#6b7280" }}>
+              ดูสรุปแผนการหมุนเวียนกลุ่ม MOA และผลการจัดตาราง
+            </span>
+            <div style={{ marginTop: 8 }}>
+              <button className="btn xs">ไปหน้า Summary</button>
+            </div>
+          </Link>
         </div>
       </div>
     </div>

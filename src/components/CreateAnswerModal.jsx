@@ -1,504 +1,649 @@
-// src/components/CreateAnswerModal.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { API_BASE, toJsonOrError } from "../api/apiClient";
 
-import { readAnswersApi } from "../api/readAnswersApi";
 import { createAnswerApi } from "../api/createAnswerApi";
-import { createScoreApi } from "../api/createScoreApi";
-import { updateScoreApi } from "../api/updateScoreApi";
+import { readAnswersApi } from "../api/readAnswersApi";
+import { readChemicalsApi } from "../api/chemicalsApi";
 
-function extractList(data) {
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.data)) return data.data;
-  if (Array.isArray(data?.items)) return data.items;
-  if (Array.isArray(data?.rows)) return data.rows;
-  return [];
+const overlayStyle = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(0,0,0,0.35)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 50,
+  padding: 16,
+};
+
+const modalStyle = {
+  width: "min(980px, 96vw)",
+  maxHeight: "92vh",
+  background: "#fff",
+  borderRadius: 18,
+  overflow: "hidden",
+  boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+  display: "flex",
+  flexDirection: "column",
+};
+
+const headerStyle = {
+  padding: 16,
+  borderBottom: "1px solid #eee",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+};
+
+const bodyStyle = {
+  padding: 16,
+  overflow: "auto",
+  WebkitOverflowScrolling: "touch",
+  flex: "1 1 auto",
+};
+
+const footerStyle = {
+  padding: 16,
+  borderTop: "1px solid #eee",
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: 10,
+};
+
+function newOption() {
+  return {
+    choice_text: "",
+    choices_text: "",
+    score: 0,
+    image_url: "",
+    image_file: null,
+    chemical_id: "",
+    _preview: "",
+  };
 }
 
-function qId(q) {
-  return q?.question_id ?? q?.id ?? "";
-}
-function qText(q) {
-  return String(q?.question_text ?? q?.question ?? q?.text ?? "");
-}
-function qType(q) {
-  return String(q?.question_type ?? q?.type ?? "").trim();
-}
-function qMax(q) {
-  const v = q?.max_score ?? q?.maxScore ?? q?.max ?? null;
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-function typeLabel(type) {
-  const t = String(type || "");
-  if (t === "yes_no") return "ใช่/ไม่ใช่";
-  if (t === "numeric") return "ตัวเลข";
-  if (t === "multi") return "หลายตัวเลือก";
-  return t || "-";
-}
-
-// ✅ ดึง token ได้ทั้ง 2 แบบ (กันของเดิม/ใหม่)
-function getAnyToken() {
-  try {
-    const raw = localStorage.getItem("auth_user");
-    if (raw) {
-      const u = JSON.parse(raw);
-      if (u?.token) return String(u.token);
-    }
-  } catch {}
-  const t = localStorage.getItem("auth_token");
-  return t ? String(t) : "";
-}
-
-async function fetchScoresList({ disease_id, question_id }) {
-  if (!disease_id || !question_id) return [];
-
-  const url = `${API_BASE}/scores/read_scores.php?disease_id=${encodeURIComponent(
-    disease_id
-  )}&question_id=${encodeURIComponent(question_id)}`;
-
-  const token = getAnyToken();
-  const headers = new Headers();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-
-  const res = await fetch(url, {
-    credentials: "include",
-    headers,
-  });
-
-  const data = await toJsonOrError(res, "โหลดคะแนนไม่สำเร็จ");
-  return extractList(data);
+function revokePreview(opt) {
+  if (opt && opt._preview) {
+    try {
+      URL.revokeObjectURL(opt._preview);
+    } catch {}
+  }
 }
 
 export default function CreateAnswerModal({
-  diseaseId,
-  question,
+  open,
   onClose,
-  onSuccess,
+  question,
+  diseaseId,
+  onCreated,
 }) {
-  const questionId = useMemo(() => String(qId(question) || ""), [question]);
-  const questionText = useMemo(() => qText(question), [question]);
-  const questionType = useMemo(() => qType(question), [question]);
-  const maxScore = useMemo(() => qMax(question), [question]);
-
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [err, setErr] = useState("");
 
-  // yes/no mode
-  const [yesNoMode, setYesNoMode] = useState("yesno");
-  const [opt1Label, setOpt1Label] = useState("ใช่");
-  const [opt2Label, setOpt2Label] = useState("ไม่ใช่");
-  const [yesScore, setYesScore] = useState(0);
-  const [noScore, setNoScore] = useState(0);
+  const questionType = question?.question_type || "multi";
 
-  const [existingChoices, setExistingChoices] = useState([]);
-  const [opt1Id, setOpt1Id] = useState(null);
-  const [opt2Id, setOpt2Id] = useState(null);
+  // ✅ สำหรับคำถามเกี่ยวกับสารเคมี (disease_id=8): ให้เลือกกรอกเอง หรือเลือกจากตารางสารเคมี
+  const isChemicalDisease = Number(diseaseId) === 8;
+  const canUseChemicalDropdown = isChemicalDisease && questionType !== "yes_no";
+  const [useChemicalDropdown, setUseChemicalDropdown] = useState(false);
+  const [chemicals, setChemicals] = useState([]);
+  const [chemLoading, setChemLoading] = useState(false);
+  const [chemErr, setChemErr] = useState("");
 
-  // multi/numeric rows
-  const [rows, setRows] = useState([{ label: "", score: 0 }]);
-
-  // ✅ scores ในระบบ (เพื่อคำนวณคะแนนรวม/คงเหลือ)
-  const [baseTotal, setBaseTotal] = useState(0);
-  const [scoreMap, setScoreMap] = useState(new Map()); // choice_id -> score_value
-
+  // default: ถ้าเป็น disease_id=8 และไม่ใช่ yes_no ให้เปิดโหมดดรอปดาวน์อัตโนมัติ
   useEffect(() => {
-    // reset เมื่อเปิด modal ใหม่
-    setError("");
-    setYesNoMode("yesno");
-    setOpt1Label("ใช่");
-    setOpt2Label("ไม่ใช่");
-    setYesScore(0);
-    setNoScore(0);
-    setRows([{ label: "", score: 0 }]);
-    setExistingChoices([]);
-    setOpt1Id(null);
-    setOpt2Id(null);
-    setBaseTotal(0);
-    setScoreMap(new Map());
-  }, [questionId, diseaseId]);
+    if (!open) return;
+    setUseChemicalDropdown(canUseChemicalDropdown);
+  }, [open, canUseChemicalDropdown, question?.question_id]);
 
-  // โหลด answers ที่มีอยู่ (ใช้หา opt1Id/opt2Id กรณี yes_no)
+  // โหลดรายการสารเคมีเมื่อเปิดโหมดดรอปดาวน์
   useEffect(() => {
-    (async () => {
-      try {
-        if (!questionId) return;
-        const choices = await readAnswersApi(Number(questionId));
-        setExistingChoices(Array.isArray(choices) ? choices : []);
-      } catch {
-        setExistingChoices([]);
-      }
-    })();
-  }, [questionId]);
+    if (!open || !useChemicalDropdown) return;
+    let alive = true;
+    setChemErr("");
+    setChemLoading(true);
+    readChemicalsApi()
+      .then((data) => {
+        if (!alive) return;
+        setChemicals(Array.isArray(data) ? data : []);
+      })
+      .catch((e) => {
+        if (!alive) return;
+        setChemicals([]);
+        setChemErr(e?.message || String(e));
+      })
+      .finally(() => {
+        if (!alive) return;
+        setChemLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [open, useChemicalDropdown]);
 
-  // โหลดคะแนนในระบบ เพื่อทำคะแนนรวม
+  // ถ้ามีข้อความคำตอบเดิม ตรงกับ trade_name ให้ map chemical_id ให้เอง (ช่วยตอนแก้ไข/สลับโหมด)
   useEffect(() => {
-    (async () => {
-      try {
-        if (!diseaseId || !questionId) return;
-        const list = await fetchScoresList({
-          disease_id: diseaseId,
-          question_id: questionId,
-        });
+    if (!open || !useChemicalDropdown) return;
+    if (!Array.isArray(chemicals) || chemicals.length < 1) return;
+    setOptions((prev) =>
+      prev.map((o) => {
+        if (o?.chemical_id) return o;
+        const t = String(o?.choice_text || "").trim();
+        if (!t) return o;
+        const hit = chemicals.find(
+          (c) => String(c?.trade_name || "").trim() === t
+        );
+        if (!hit) return o;
+        return { ...o, chemical_id: String(hit.chemical_id) };
+      })
+    );
+  }, [open, useChemicalDropdown, chemicals]);
 
-        const m = new Map();
-        let sum = 0;
-        for (const s of list) {
-          const cid = String(s.choice_id ?? "");
-          if (!cid) continue;
-          const v = Number(s.score_value ?? s.risk_score ?? 0) || 0;
-          m.set(cid, v);
-          sum += v;
-        }
-        setScoreMap(m);
-        setBaseTotal(sum);
-      } catch {
-        setScoreMap(new Map());
-        setBaseTotal(0);
-      }
-    })();
-  }, [diseaseId, questionId]);
-
-  // เมื่ออยู่โหมด yes_no: หา choice_id ของ 2 ตัวเลือก (ถ้ามี)
+  // (ไม่จำเป็นต้องใช้ res แต่คงไว้ตามโค้ดเดิมของคุณ)
   useEffect(() => {
-    if (questionType !== "yes_no") return;
-    const findByLabel = (lab) =>
-      existingChoices.find(
-        (c) => String(c.choice_label ?? c.label ?? "").trim() === String(lab).trim()
-      );
+    if (!open) return;
+    readAnswersApi?.().catch(() => {});
+  }, [open]);
 
-    const c1 = findByLabel(opt1Label);
-    const c2 = findByLabel(opt2Label);
+  const [yesNoSet, setYesNoSet] = useState("yes_no");
+  const yesNoLabels = useMemo(() => {
+    if (yesNoSet === "found_notfound") return ["พบ", "ไม่พบ"];
+    return ["ใช่", "ไม่ใช่"];
+  }, [yesNoSet]);
 
-    setOpt1Id(c1?.choice_id ?? c1?.id ?? null);
-    setOpt2Id(c2?.choice_id ?? c2?.id ?? null);
-  }, [questionType, existingChoices, opt1Label, opt2Label]);
+  // ✅ FIX: เริ่มต้น 1 คำตอบ (ยกเว้น yes_no จะถูก set ใน effect)
+  const [options, setOptions] = useState([newOption()]);
 
-  function onChangeMode(mode) {
-    setYesNoMode(mode);
-    if (mode === "yesno") {
-      setOpt1Label("ใช่");
-      setOpt2Label("ไม่ใช่");
-    } else if (mode === "found") {
-      setOpt1Label("พบ");
-      setOpt2Label("ไม่พบ");
-    } else if (mode === "used") {
-      setOpt1Label("เคยใช้");
-      setOpt2Label("ไม่เคยใช้");
-    } else if (mode === "cut") {
-      setOpt1Label("เคยตัด");
-      setOpt2Label("ไม่เคยตัด");
-    }
-  }
+  // init เมื่อเปิด modal / เปลี่ยนชนิดคำถาม
+  useEffect(() => {
+    if (!open) return;
 
-  function addRow() {
-    setRows((prev) => [...prev, { label: "", score: 0 }]);
-  }
-  function removeRow(i) {
-    setRows((prev) => prev.filter((_, idx) => idx !== i));
-  }
-  function updateRow(i, patch) {
-    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
-  }
+    setErr("");
+    setLoading(false);
 
-  // ✅ คำนวณคะแนนรวมหลังบันทึก (คาดการณ์)
-  const predictedTotal = useMemo(() => {
-    const base = Number(baseTotal) || 0;
+    // เคลียร์ preview เดิม (ถ้ามี)
+    setOptions((prev) => {
+      prev.forEach(revokePreview);
+      return [];
+    });
 
     if (questionType === "yes_no") {
-      const old1 = opt1Id ? Number(scoreMap.get(String(opt1Id)) || 0) : 0;
-      const old2 = opt2Id ? Number(scoreMap.get(String(opt2Id)) || 0) : 0;
-
-      const next1 = Number(yesScore) || 0;
-      const next2 = Number(noScore) || 0;
-
-      return base - old1 - old2 + next1 + next2;
+      setYesNoSet("yes_no");
+      setOptions([
+        { ...newOption(), choice_text: yesNoLabels[0] },
+        { ...newOption(), choice_text: yesNoLabels[1] },
+      ]);
+    } else {
+      setOptions([newOption()]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, question?.question_id, questionType]);
 
-    // multi/numeric: เพิ่มใหม่ทั้งหมด → base + sum(new rows)
-    const addSum = rows.reduce((sum, r) => sum + (Number(r.score) || 0), 0);
-    return base + addSum;
-  }, [baseTotal, questionType, opt1Id, opt2Id, yesScore, noScore, rows, scoreMap]);
-
-  const remaining = useMemo(() => {
-    if (!maxScore) return null;
-    return maxScore - (Number(predictedTotal) || 0);
-  }, [maxScore, predictedTotal]);
-
-  const exceed = useMemo(() => {
-    if (!maxScore) return false;
-    return (Number(predictedTotal) || 0) > maxScore;
-  }, [maxScore, predictedTotal]);
-
-  async function upsertScore({ disease_id, question_id, choice_id, risk_score }) {
-    try {
-      await updateScoreApi({ disease_id, question_id, choice_id, risk_score });
-    } catch {
-      await createScoreApi({ disease_id, question_id, choice_id, risk_score });
-    }
-  }
-
-  async function saveYesNo() {
-    // หา/สร้าง choices 2 ตัว
-    let c1 = existingChoices.find(
-      (c) => String(c.choice_label ?? "").trim() === String(opt1Label).trim()
-    );
-    let c2 = existingChoices.find(
-      (c) => String(c.choice_label ?? "").trim() === String(opt2Label).trim()
-    );
-
-    if (!c1) c1 = await createAnswerApi({ question_id: Number(questionId), choice_label: opt1Label });
-    if (!c2) c2 = await createAnswerApi({ question_id: Number(questionId), choice_label: opt2Label });
-
-    const cid1 = c1?.choice_id ?? c1?.id ?? c1?.data?.choice_id ?? c1?.data?.id ?? null;
-    const cid2 = c2?.choice_id ?? c2?.id ?? c2?.data?.choice_id ?? c2?.data?.id ?? null;
-
-    if (!cid1 || !cid2) throw new Error("สร้างคำตอบสำเร็จ แต่ไม่พบ choice_id");
-
-    await upsertScore({
-      disease_id: Number(diseaseId),
-      question_id: Number(questionId),
-      choice_id: Number(cid1),
-      risk_score: Number(yesScore) || 0,
+  const setOpt = (idx, patch) => {
+    setOptions((prev) => {
+      const next = [...prev];
+      const old = next[idx];
+      if (patch.image_file && old?._preview) revokePreview(old);
+      next[idx] = { ...old, ...patch };
+      return next;
     });
+  };
 
-    await upsertScore({
-      disease_id: Number(diseaseId),
-      question_id: Number(questionId),
-      choice_id: Number(cid2),
-      risk_score: Number(noScore) || 0,
+  const addOption = () => setOptions((prev) => [...prev, newOption()]);
+
+  const removeOption = (idx) => {
+    setOptions((prev) => {
+      const next = [...prev];
+      const [removed] = next.splice(idx, 1);
+      revokePreview(removed);
+      return next.length ? next : [newOption()];
     });
-  }
+  };
 
-  async function saveMultiOrNumeric() {
-    const items = rows
-      .map((r) => ({
-        label: String(r.label ?? "").trim(),
-        score: Number(r.score) || 0,
-      }))
-      .filter((r) => r.label.length > 0);
+  const handlePickFile = (idx, file) => {
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setOpt(idx, { image_file: file, _preview: url });
+  };
 
-    if (items.length === 0) throw new Error("กรุณากรอกคำตอบอย่างน้อย 1 ข้อ");
+  const validate = () => {
+    if (!question?.question_id) return "ไม่พบ question_id";
+    if (!diseaseId) return "ไม่พบ diseaseId";
+    if (!Array.isArray(options) || options.length < 1)
+      return "ต้องมีคำตอบอย่างน้อย 1 ข้อ";
 
-    for (const it of items) {
-      const created = await createAnswerApi({
-        question_id: Number(questionId),
-        choice_label: it.label,
-      });
-
-      const cid =
-        created?.choice_id ??
-        created?.id ??
-        created?.data?.choice_id ??
-        created?.data?.id ??
-        null;
-
-      if (!cid) throw new Error("สร้างคำตอบสำเร็จ แต่ไม่พบ choice_id");
-
-      await upsertScore({
-        disease_id: Number(diseaseId),
-        question_id: Number(questionId),
-        choice_id: Number(cid),
-        risk_score: it.score,
-      });
-    }
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError("");
-
-    if (!questionId) return setError("ไม่พบ question_id");
-    if (!diseaseId) return setError("ไม่พบ disease_id (กรุณาเลือกโรคก่อน)");
-
-    // ✅ กันตั้งแต่ก่อนยิง API (กัน partial insert)
-    if (maxScore && exceed) {
-      return setError(
-        `คะแนนรวมหลังบันทึก (${predictedTotal}) เกินคะแนนสูงสุดของคำถาม (${maxScore})`
-      );
+    if (questionType === "yes_no") {
+      if (options.length !== 2) return "yes/no ต้องมี 2 ตัวเลือก";
     }
 
+    const hasEmpty = options.some((o) => !String(o.choice_text || "").trim());
+    if (hasEmpty) return "กรุณากรอกข้อความคำตอบให้ครบ";
+
+    for (const o of options) {
+      const sc = Number(o.score ?? 0);
+      if (Number.isNaN(sc)) return "คะแนนต้องเป็นตัวเลข";
+    }
+
+    return "";
+  };
+
+  const handleSubmit = async () => {
+    const v = validate();
+    if (v) {
+      setErr(v);
+      return;
+    }
+
+    setErr("");
     setLoading(true);
     try {
-      if (questionType === "yes_no") await saveYesNo();
-      else await saveMultiOrNumeric();
+      await createAnswerApi({
+        disease_id: Number(diseaseId),
+        question_id: Number(question.question_id),
+        question_type: questionType,
+        options: options.map((o) => ({
+          choice_text: String(o.choice_text || "").trim(),
+          choices_text: String(o.choices_text || "").trim(),
+          score: Number(o.score ?? 0),
+          image_url: String(o.image_url || "").trim(),
+          image_file: o.image_file || null,
+        })),
+      });
 
-      onSuccess?.();
-    } catch (err) {
-      setError(err?.message || "บันทึกไม่สำเร็จ");
+      onCreated?.();
+      onClose?.();
+    } catch (e) {
+      setErr(e?.message || String(e));
     } finally {
       setLoading(false);
     }
-  }
+  };
+
+  if (!open) return null;
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal" style={{ width: 640, maxWidth: "94vw" }}>
-        <h2 style={{ marginTop: 0 }}>เพิ่มคำตอบ</h2>
-
-        {error && <div className="alert error">{error}</div>}
-
-        <div className="card" style={{ marginBottom: 12 }}>
-          <div style={{ fontWeight: 700 }}>คำถามที่เลือก</div>
-          <div style={{ whiteSpace: "pre-wrap" }}>{questionText || "-"}</div>
-          <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
-            ประเภทคำถาม: {typeLabel(questionType)}
+    <div style={overlayStyle} onMouseDown={onClose}>
+      <div style={modalStyle} onMouseDown={(e) => e.stopPropagation()}>
+        <div style={headerStyle}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <div style={{ fontWeight: 800, fontSize: 16 }}>
+              เพิ่มคำตอบ: {question?.question_text || ""}
+            </div>
+            <div style={{ fontSize: 12, color: "#666" }}>
+              question_type: <b>{questionType}</b>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {canUseChemicalDropdown ? (
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 12,
+                  color: "#444",
+                  userSelect: "none",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={useChemicalDropdown}
+                  onChange={(e) => setUseChemicalDropdown(e.target.checked)}
+                />
+                เลือกจากตารางสารเคมี
+                {useChemicalDropdown && chemLoading ? (
+                  <span style={{ color: "#666" }}>(กำลังโหลด...)</span>
+                ) : null}
+              </label>
+            ) : null}
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                border: "1px solid #ddd",
+                background: "#fff",
+                padding: "6px 10px",
+                borderRadius: 10,
+                cursor: "pointer",
+              }}
+            >
+              ปิด
+            </button>
           </div>
         </div>
 
-        {/* ✅ คะแนนรวม/คงเหลือ แบบเรียลไทม์ */}
-        {maxScore && (
-          <div className="card" style={{ marginBottom: 12 }}>
-            <div style={{ fontWeight: 700, marginBottom: 6 }}>สรุปคะแนนของคำถาม</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-              <div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>คะแนนสูงสุด</div>
-                <div style={{ fontSize: 18, fontWeight: 800 }}>{maxScore}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>คะแนนหลังบันทึก</div>
-                <div style={{ fontSize: 18, fontWeight: 800 }}>{predictedTotal}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>คะแนนคงเหลือ</div>
-                <div style={{ fontSize: 18, fontWeight: 800 }}>
-                  {remaining}
-                </div>
-              </div>
+        <div style={bodyStyle}>
+          {err ? (
+            <div
+              style={{
+                background: "#ffe9e9",
+                color: "#b00020",
+                padding: 10,
+                borderRadius: 10,
+                marginBottom: 12,
+                border: "1px solid #ffc7c7",
+              }}
+            >
+              {err}
             </div>
+          ) : null}
 
-            {exceed && (
-              <div className="alert error" style={{ marginTop: 10 }}>
-                คะแนนรวมเกินกำหนด (เกิน {Math.abs(remaining)} คะแนน)
-              </div>
-            )}
-          </div>
-        )}
+          {useChemicalDropdown && chemErr ? (
+            <div
+              style={{
+                background: "#fff7e6",
+                color: "#8a4b00",
+                padding: 10,
+                borderRadius: 10,
+                marginBottom: 12,
+                border: "1px solid #ffd9a8",
+              }}
+            >
+              โหลดสารเคมีไม่สำเร็จ: {chemErr}
+            </div>
+          ) : null}
 
-        <form onSubmit={handleSubmit}>
           {questionType === "yes_no" ? (
-            <>
-              <label style={{ display: "block", marginBottom: 6 }}>
-                รูปแบบคำตอบ
-              </label>
-              <select
-                value={yesNoMode}
-                onChange={(e) => onChangeMode(e.target.value)}
-                style={{ width: "100%", marginBottom: 10 }}
-              >
-                <option value="yesno">ใช่ / ไม่ใช่</option>
-                <option value="found">พบ / ไม่พบ</option>
-                <option value="used">เคยใช้ / ไม่เคยใช้</option>
-                <option value="cut">เคยตัด / ไม่เคยตัด</option>
-              </select>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 10 }}>
-                <div>
-                  <label>คำตอบ</label>
-                  <input
-                    value={opt1Label}
-                    onChange={(e) => setOpt1Label(e.target.value)}
-                    style={{ width: "100%" }}
-                  />
-                </div>
-                <div>
-                  <label>คะแนน</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={yesScore}
-                    onChange={(e) => setYesScore(e.target.value)}
-                    style={{ width: "100%" }}
-                  />
-                </div>
-
-                <div>
-                  <label>คำตอบ</label>
-                  <input
-                    value={opt2Label}
-                    onChange={(e) => setOpt2Label(e.target.value)}
-                    style={{ width: "100%" }}
-                  />
-                </div>
-                <div>
-                  <label>คะแนน</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={noScore}
-                    onChange={(e) => setNoScore(e.target.value)}
-                    style={{ width: "100%" }}
-                  />
-                </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>
+                ชุดคำตอบ yes/no (เลือกเพื่อช่วยตั้งค่าอัตโนมัติ)
               </div>
-            </>
-          ) : (
-            <>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>
-                เพิ่มคำตอบ ({questionType || "multi"})
-              </div>
-
-              {rows.map((r, idx) => (
-                <div
-                  key={idx}
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setYesNoSet("yes_no");
+                    setOptions([
+                      { ...newOption(), choice_text: "ใช่" },
+                      { ...newOption(), choice_text: "ไม่ใช่" },
+                    ]);
+                  }}
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 140px auto",
-                    gap: 10,
-                    marginBottom: 10,
-                    alignItems: "end",
+                    border: "1px solid #ddd",
+                    background: yesNoSet === "yes_no" ? "#ffeede" : "#fff",
+                    padding: "8px 10px",
+                    borderRadius: 10,
+                    cursor: "pointer",
+                    fontWeight: 700,
+                    color: "#cc6b00",
                   }}
                 >
-                  <div>
-                    <label>คำตอบ</label>
-                    <input
-                      value={r.label}
-                      onChange={(e) => updateRow(idx, { label: e.target.value })}
-                      placeholder={questionType === "numeric" ? "เช่น 1, 2, 3..." : "พิมพ์คำตอบ"}
-                      style={{ width: "100%" }}
-                    />
+                  ใช่/ไม่ใช่
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setYesNoSet("found_notfound");
+                    setOptions([
+                      { ...newOption(), choice_text: "พบ" },
+                      { ...newOption(), choice_text: "ไม่พบ" },
+                    ]);
+                  }}
+                  style={{
+                    border: "1px solid #ddd",
+                    background:
+                      yesNoSet === "found_notfound" ? "#ffeede" : "#fff",
+                    padding: "8px 10px",
+                    borderRadius: 10,
+                    cursor: "pointer",
+                    fontWeight: 700,
+                    color: "#cc6b00",
+                  }}
+                >
+                  พบ/ไม่พบ
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          <div style={{ fontWeight: 800, marginBottom: 8 }}>รายการคำตอบ</div>
+
+          <div style={{ display: "grid", gap: 12 }}>
+            {options.map((opt, idx) => {
+              const preview = opt._preview;
+              const imgSrc = preview || opt.image_url;
+
+              return (
+                <div
+                  key={`opt-${idx}`}
+                  style={{
+                    border: "1px solid #eee",
+                    borderRadius: 12,
+                    padding: 12,
+                    background: "#fafafa",
+                  }}
+                >
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <div style={{ flex: "1 1 320px" }}>
+                      <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>
+                        ข้อความคำตอบ
+                      </div>
+
+                      {useChemicalDropdown ? (
+                        <select
+                          value={opt.chemical_id || ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            const hit = (chemicals || []).find(
+                              (c) => String(c?.chemical_id) === String(v)
+                            );
+                            setOpt(idx, {
+                              chemical_id: v,
+                              choice_text: hit
+                                ? String(hit.trade_name || "").trim()
+                                : "",
+                            });
+                          }}
+                          disabled={chemLoading}
+                          style={{
+                            width: "100%",
+                            padding: "10px 12px",
+                            borderRadius: 10,
+                            border: "1px solid #ddd",
+                            outline: "none",
+                            background: chemLoading ? "#f6f6f6" : "#fff",
+                          }}
+                        >
+                          <option value="">
+                            {chemLoading
+                              ? "กำลังโหลดสารเคมี..."
+                              : "-- เลือกสารเคมี --"}
+                          </option>
+                          {(chemicals || []).map((c) => (
+                            <option key={c.chemical_id} value={String(c.chemical_id)}>
+                              {String(c.trade_name || "").trim()}
+                              {c.active_ingredient
+                                ? ` (${String(c.active_ingredient).trim()})`
+                                : ""}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={opt.choice_text}
+                          onChange={(e) => setOpt(idx, { choice_text: e.target.value })}
+                          style={{
+                            width: "100%",
+                            padding: "10px 12px",
+                            borderRadius: 10,
+                            border: "1px solid #ddd",
+                            outline: "none",
+                          }}
+                        />
+                      )}
+                    </div>
+
+                    <div style={{ flex: "1 1 320px" }}>
+                      <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>
+                        คำแนะนำ (ไม่บังคับ)
+                      </div>
+                      <textarea
+                        rows={2}
+                        value={opt.choices_text}
+                        onChange={(e) => setOpt(idx, { choices_text: e.target.value })}
+                        style={{
+                          width: "100%",
+                          padding: "10px 12px",
+                          borderRadius: 10,
+                          border: "1px solid #ddd",
+                          outline: "none",
+                          resize: "vertical",
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ width: 140 }}>
+                      <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>
+                        คะแนน
+                      </div>
+                      <input
+                        type="number"
+                        value={opt.score}
+                        onChange={(e) =>
+                          setOpt(idx, { score: Number(e.target.value || 0) })
+                        }
+                        style={{
+                          width: "100%",
+                          padding: "10px 12px",
+                          borderRadius: 10,
+                          border: "1px solid #ddd",
+                          outline: "none",
+                        }}
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <label>คะแนน</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={r.score}
-                      onChange={(e) => updateRow(idx, { score: e.target.value })}
-                      style={{ width: "100%" }}
-                    />
-                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 10,
+                      flexWrap: "wrap",
+                      marginTop: 10,
+                      alignItems: "center",
+                    }}
+                  >
+                    <div style={{ flex: "1 1 420px" }}>
+                      <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>
+                        URL รูป (ไม่บังคับ)
+                      </div>
+                      <input
+                        type="text"
+                        value={opt.image_url}
+                        onChange={(e) => setOpt(idx, { image_url: e.target.value })}
+                        placeholder="เช่น /crud/uploads/choice_images/xxx.jpg"
+                        style={{
+                          width: "100%",
+                          padding: "10px 12px",
+                          borderRadius: 10,
+                          border: "1px solid #ddd",
+                          outline: "none",
+                        }}
+                      />
+                    </div>
 
-                  <div>
+                    <div style={{ flex: "1 1 260px" }}>
+                      <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>
+                        เลือกรูปจากเครื่อง (ไม่บังคับ)
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handlePickFile(idx, e.target.files?.[0])}
+                      />
+                    </div>
+
                     <button
                       type="button"
-                      className="btn ghost"
-                      onClick={() => removeRow(idx)}
-                      disabled={rows.length <= 1}
+                      onClick={() => removeOption(idx)}
+                      style={{
+                        border: "1px solid #ffb3b3",
+                        background: "#fff",
+                        color: "#b00020",
+                        padding: "10px 12px",
+                        borderRadius: 10,
+                        cursor: "pointer",
+                      }}
                     >
                       ลบ
                     </button>
                   </div>
+
+                  {imgSrc ? (
+                    <div style={{ marginTop: 10 }}>
+                      <img
+                        src={imgSrc}
+                        alt="preview"
+                        style={{
+                          width: 160,
+                          height: 120,
+                          objectFit: "cover",
+                          borderRadius: 12,
+                          border: "1px solid #eee",
+                        }}
+                      />
+                    </div>
+                  ) : null}
                 </div>
-              ))}
-
-              <button type="button" className="btn ghost" onClick={addRow}>
-                + เพิ่มคำตอบอีก 1 ข้อ
-              </button>
-            </>
-          )}
-
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
-            <button type="button" className="btn ghost" onClick={onClose} disabled={loading}>
-              ยกเลิก
-            </button>
-            <button type="submit" className="btn" disabled={loading || (maxScore && exceed)}>
-              {loading ? "กำลังบันทึก..." : "บันทึก"}
-            </button>
+              );
+            })}
           </div>
-        </form>
+
+          {questionType !== "yes_no" ? (
+            <div style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={addOption}
+                style={{
+                  border: "1px solid #ffb166",
+                  background: "#fff",
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  color: "#cc6b00",
+                  fontWeight: 700,
+                }}
+              >
+                + เพิ่มคำตอบ
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        <div style={footerStyle}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              border: "1px solid #ddd",
+              background: "#fff",
+              padding: "10px 12px",
+              borderRadius: 12,
+              cursor: "pointer",
+            }}
+            disabled={loading}
+          >
+            ยกเลิก
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSubmit}
+            style={{
+              border: "1px solid #ff8a00",
+              background: "#ff8a00",
+              color: "#fff",
+              padding: "10px 16px",
+              borderRadius: 12,
+              cursor: "pointer",
+              fontWeight: 800,
+            }}
+            disabled={loading}
+          >
+            {loading ? "กำลังบันทึก..." : "บันทึก"}
+          </button>
+        </div>
       </div>
     </div>
   );

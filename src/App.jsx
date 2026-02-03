@@ -9,10 +9,18 @@ import AdminQuestionsPage from "./pages/AdminQuestionsPage";
 import AdminAnswersPage from "./pages/AdminAnswersPage";
 import AdminTreatmentsPage from "./pages/AdminTreatmentsPage";
 
-// ✅ เพิ่มหน้านี้ (ต้องมีไฟล์จริง src/pages/AdminDiseasesPage.jsx)
 import AdminDiseasesPage from "./pages/AdminDiseasesPage";
+import AdminChemicalsPage from "./pages/AdminChemicalsPage";
 
 import RequireAdmin from "./components/RequireAdmin";
+
+import AdminMoaRotationPlanPage from "./pages/AdminMoaRotationPlanPage";
+import AdminAllowedChemicalsPerGroupPage from "./pages/AdminAllowedChemicalsPerGroupPage";
+import AdminRiskLevelRulesPage from "./pages/AdminRiskLevelRulesPage";
+import AdminRotationSummaryPage from "./pages/AdminRotationSummaryPage";
+
+// ✅ เพิ่มหน้า MOA Groups
+import AdminMOAGroupsPage from "./pages/AdminMOAGroupsPage";
 
 export default function App() {
   return (
@@ -64,12 +72,66 @@ export default function App() {
         }
       />
 
-      {/* ✅ สำคัญ: เพิ่ม route คำอธิบายโรค */}
       <Route
         path="/admin/diseases"
         element={
           <RequireAdmin>
             <AdminDiseasesPage />
+          </RequireAdmin>
+        }
+      />
+
+      <Route
+        path="/admin/chemicals"
+        element={
+          <RequireAdmin>
+            <AdminChemicalsPage />
+          </RequireAdmin>
+        }
+      />
+
+      <Route
+        path="/admin/moa-plan"
+        element={
+          <RequireAdmin>
+            <AdminMoaRotationPlanPage />
+          </RequireAdmin>
+        }
+      />
+
+      <Route
+        path="/admin/allowed-chemicals"
+        element={
+          <RequireAdmin>
+            <AdminAllowedChemicalsPerGroupPage />
+          </RequireAdmin>
+        }
+      />
+
+      <Route
+        path="/admin/risk-level-rules"
+        element={
+          <RequireAdmin>
+            <AdminRiskLevelRulesPage />
+          </RequireAdmin>
+        }
+      />
+
+      <Route
+        path="/admin/rotation-summary"
+        element={
+          <RequireAdmin>
+            <AdminRotationSummaryPage />
+          </RequireAdmin>
+        }
+      />
+
+      {/* ✅ เพิ่ม route: MOA Groups */}
+      <Route
+        path="/admin/moa-groups"
+        element={
+          <RequireAdmin>
+            <AdminMOAGroupsPage />
           </RequireAdmin>
         }
       />
