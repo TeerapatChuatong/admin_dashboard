@@ -19,8 +19,7 @@ const ANSWER_SOURCES = [
 const modalCardScrollStyle = {
   maxHeight: "calc(100vh - 48px)",
   overflowY: "auto",
-  WebkitOverflowScrolling: "touch",
-};
+  WebkitOverflowScrolling: "touch"};
 
 function toInt(v, fallback = 0) {
   const n = Number(v);
@@ -60,8 +59,7 @@ export default function EditQuestionModal({ question, onClose, onSuccess }) {
 
     max_score: toInt(question?.max_score ?? 0, 0),
     sort_order: toInt(question?.sort_order ?? 0, 0),
-    is_active: toInt(question?.is_active ?? 1, 1),
-  });
+    is_active: toInt(question?.is_active ?? 1, 1)});
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -123,8 +121,7 @@ export default function EditQuestionModal({ question, onClose, onSuccess }) {
         max_score: Number(form.max_score),
         sort_order: Number(form.sort_order) || 0,
         is_active: Number(form.is_active),
-        order_no: Number(form.sort_order) || 0,
-      });
+        order_no: Number(form.sort_order) || 0});
 
       onSuccess && onSuccess();
     } catch (err) {
@@ -192,8 +189,7 @@ export default function EditQuestionModal({ question, onClose, onSuccess }) {
                   setForm((prev) => ({
                     ...prev,
                     answer_source: v,
-                    question_type: v === "chemicals" ? "multi" : prev.question_type,
-                  }));
+                    question_type: v === "chemicals" ? "multi" : prev.question_type}));
                 }}
               >
                 {ANSWER_SOURCES.map((s) => (
@@ -204,7 +200,7 @@ export default function EditQuestionModal({ question, onClose, onSuccess }) {
               </select>
 
               {String(form.answer_source) === "chemicals" && (
-                <div style={{ marginTop: 6, fontSize: 12, color: "#9ca3af" }}>
+                <div style={{ marginTop: 6, color: "#9ca3af" }}>
                   คำถามนี้จะดึงรายการสารเคมีจากตารางสารเคมี (ไม่ต้องเพิ่มคำตอบในหน้าจัดการคำตอบ)
                 </div>
               )}
@@ -327,11 +323,11 @@ export default function EditQuestionModal({ question, onClose, onSuccess }) {
             </div>
           </div>
 
-          <div className="form-actions">
-            <button className="btn" type="submit" disabled={saving}>
+          <div className="formActions">
+            <button className="btnBase btnSave" type="submit" disabled={saving}>
               {saving ? "กำลังบันทึก..." : "บันทึก"}
             </button>
-            <button className="btn-cancel" type="button" onClick={onClose}>
+            <button className="btnBase btnCancel" type="button" onClick={onClose}>
               ยกเลิก
             </button>
           </div>

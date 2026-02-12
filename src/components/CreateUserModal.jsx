@@ -6,8 +6,7 @@ export default function CreateUserModal({ onClose, onSuccess }) {
     username: "",
     email: "",
     password: "",
-    role: "user",
-  });
+    role: "user"});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -73,11 +72,11 @@ export default function CreateUserModal({ onClose, onSuccess }) {
             <option value="admin">ผู้ดูแลระบบ</option>
           </select>
 
-          <div className="form-actions">
-            <button className="btn" type="submit" disabled={saving}>
+          <div className="formActions">
+            <button className="btnBase btnSave" type="submit" disabled={saving}>
               {saving ? "กำลังบันทึก..." : "เพิ่มผู้ใช้"}
             </button>
-            <button className="btn-cancel" type="button" onClick={onClose}>
+            <button className="btnBase btnCancel" type="button" onClick={onClose}>
               ยกเลิก
             </button>
           </div>

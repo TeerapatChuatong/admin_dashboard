@@ -6,6 +6,24 @@
   --text: #1E293B; /* Dark Slate */
   --card-shadow: 0 10px 25px -5px rgba(16,185,129,0.15);
   --overlay-shadow: 0 8px 24px -8px rgba(16,185,129,0.08);
+
+
+  /* ================================
+     Global typography scale
+     ================================ */
+  --fs-body: 16px;
+  --fs-label: 16px; /* important: same as body */
+  --fs-table: 16px;
+  --fs-button: 16px;
+
+  /* Secondary text (still standardized; avoid scattered font sizes) */
+  --fs-muted: 13px;
+
+  --fw-regular: 400;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  --lh-base: 1.6;
 }
 
 body {
@@ -14,6 +32,9 @@ body {
     sans-serif;
   background: var(--bg);
   color: var(--text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-base);
+  font-weight: var(--fw-regular);
 }
 
 /* ✅ ให้พื้นหลังติดทั้งแอปเสมอ */
@@ -49,12 +70,15 @@ body,
   margin-top: 4px;
   margin-bottom: 16px;
   color: #6b7280;
-  font-size: 13px;
+  font-size: var(--fs-muted);
+  line-height: var(--lh-base);
 }
 
 .label {
   display: block;
-  font-size: 12px;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-base);
   margin-bottom: 4px;
   color: #6b7280;
 }
@@ -81,7 +105,7 @@ body,
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 13px;
+  font-size: var(--fs-muted);
 }
 
 /* Card */
@@ -108,7 +132,8 @@ textarea {
   border-radius: 12px;
   border: 1px solid #e6f0ea;
   background: #fff;
-  font-size: 13px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-base);
   box-sizing: border-box;
 }
 
@@ -149,7 +174,8 @@ input[type="checkbox"] {
   border: none;
   background: var(--primary);
   color: #ffffff;
-  font-size: 14px;
+  font-size: var(--fs-button);
+  font-weight: var(--fw-semibold);
   cursor: pointer;
   box-shadow: var(--overlay-shadow);
   transition: transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
@@ -174,7 +200,7 @@ input[type="checkbox"] {
   color: #065F46;
   border: 1px solid #A7F3D0;
   box-shadow: none;
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 
 .btn.ghost:hover {
@@ -185,7 +211,7 @@ input[type="checkbox"] {
   background: #EF4444;
   color: #ffffff;
   border: none;
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 
 .btn.danger:hover {
@@ -194,14 +220,14 @@ input[type="checkbox"] {
 
 .btn.xs {
   padding: 6px 10px;
-  font-size: 12px;
+  font-size: var(--fs-button);
 }
 
 .btn.xs.danger {
   background: #EF4444;
   color: #ffffff;
   border: none;
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 
 .btn.xs.danger:hover {
@@ -212,7 +238,7 @@ input[type="checkbox"] {
   background: #D1FAE5;
   color: #065F46;
   border: 1px solid #A7F3D0;
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 
 .btn.xs.ghost:hover {
@@ -230,8 +256,8 @@ input[type="checkbox"] {
   border: none;
   background: #EF4444;
   color: #ffffff;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--fs-button);
+  font-weight: var(--fw-semibold);
   cursor: pointer;
   transition: background 150ms ease, box-shadow 150ms ease;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
@@ -268,8 +294,8 @@ input[type="checkbox"] {
   border: 1px solid #A7F3D0;
   background: #D1FAE5;
   color: #065F46;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--fs-button);
+  font-weight: var(--fw-semibold);
   cursor: pointer;
   transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
@@ -301,7 +327,8 @@ input[type="checkbox"] {
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--fs-table);
+  line-height: var(--lh-base);
 }
 
 .table th,
@@ -310,6 +337,8 @@ input[type="checkbox"] {
   border-bottom: 1px solid #e5e7eb;
   text-align: left;
 }
+
+.table td{ overflow-wrap: anywhere; }
 
 /* Alert */
 .alert.error {
@@ -381,7 +410,8 @@ input[type="checkbox"] {
 }
 
 .status-label {
-  font-size: 12px;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-semibold);
   color: #000000cb;
   display: block;
   margin-bottom: 4px;
@@ -398,7 +428,7 @@ input[type="checkbox"] {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: var(--fs-body);
   white-space: nowrap;
 }
 
@@ -420,4 +450,178 @@ input[type="checkbox"] {
 
 a.btn.ghost {
   text-decoration: none;
+}
+/* ================================
+   Actions (Edit/Delete) - Global
+   ================================ */
+.actionButtons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.actionsHeader,
+.actionsCell {
+  text-align: right !important;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* make Actions column compact */
+.actionsCell {
+  width: 1%;
+}
+
+.actionButtons .btn {
+  height: 44px;
+  padding: 10px 14px;
+  font-size: var(--fs-button);
+  font-weight: var(--fw-semibold);
+  border: none;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 110px;
+  transform: none; /* prevent base .btn translate on hover from shifting table rows */
+}
+
+.actionButtons .btn:hover {
+  transform: none;
+  opacity: 1; /* override base hover opacity */
+}
+
+.btn-edit {
+  background: #10B981;
+  color: #FFFFFF;
+}
+
+.btn-edit:hover {
+  background: #059669;
+}
+
+.btn-delete {
+  background: #EF4444;
+  color: #FFFFFF;
+}
+
+.btn-delete:hover {
+  background: #DC2626;
+}
+
+@media (max-width: 420px) {
+  .actionButtons .btn {
+    min-width: 92px;
+    padding: 10px 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .actionButtons {
+    gap: 8px;
+  }
+  .actionButtons .btn {
+    min-width: 0;
+    padding: 10px 10px;
+  }
+}
+
+
+/* ================================
+   Global typography helpers
+   ================================ */
+.t-body{ font-size: var(--fs-body); line-height: var(--lh-base); font-weight: var(--fw-regular); }
+.t-label{ font-size: var(--fs-label); line-height: var(--lh-base); font-weight: var(--fw-semibold); }
+.t-table{ font-size: var(--fs-table); line-height: var(--lh-base); }
+.t-btn{ font-size: var(--fs-button); font-weight: var(--fw-semibold); }
+.t-muted{ font-size: var(--fs-muted); line-height: var(--lh-base); color:#6b7280; }
+.t-mutedLight{ font-size: var(--fs-muted); line-height: var(--lh-base); color:#9ca3af; }
+.t-error{ font-size: var(--fs-muted); line-height: var(--lh-base); color:crimson; margin-top:4px; }
+.t-wrap{ overflow-wrap:anywhere; }
+
+/* Element-level standardization (safe defaults) */
+label{ font-size: var(--fs-label); line-height: var(--lh-base); font-weight: var(--fw-semibold); }
+button{ font-size: var(--fs-button); font-weight: var(--fw-semibold); }
+table td{ font-size: var(--fs-table); }
+table th{ font-size: var(--fs-table); font-weight: var(--fw-bold); }
+
+/* === Global: Standard Action Bar + Buttons (Save/Cancel) ===
+   Standardize all Save/Cancel (Add/Confirm/Update vs Cancel/Close/Back)
+   across pages and modals. Keep logic unchanged; only layout/styling.
+*/
+.formActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between; /* left (save) / right (cancel) */
+  width: 100%;
+  flex-wrap: wrap; /* allow wrap only when space is truly not enough */
+}
+
+.btnBase {
+  height: 44px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  transition: 150ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.btnBase:hover {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.btnBase:active {
+  transform: translateY(1px);
+}
+
+.btnBase:focus-visible {
+  outline: 2px solid rgba(16, 185, 129, 0.35);
+  outline-offset: 2px;
+}
+
+.btnBase:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Save / Primary */
+.btnSave {
+  background: #10B981;
+  color: #FFFFFF;
+  border: 1px solid #10B981;
+}
+
+.btnSave:hover {
+  background: #059669;
+  border-color: #059669;
+}
+
+/* Cancel / Secondary */
+.btnCancel {
+  background: #D1FAE5;
+  color: #065F46;
+  border: 1px solid #A7F3D0;
+}
+
+.btnCancel:hover {
+  background: #A7F3D0;
+}
+
+/* Responsive */
+@media (max-width: 520px) {
+  .formActions { gap: 10px; }
+  .btnBase { flex: 1; }
 }

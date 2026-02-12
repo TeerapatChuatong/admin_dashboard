@@ -1033,7 +1033,6 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
 
   const modalActionBtnStyle = {
     padding: "7px 12px",
-    fontSize: 12,
     height: 32,
     lineHeight: "18px",
   };
@@ -1093,7 +1092,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
           }}
         >
           <div>
-            <label style={{ fontSize: 13 }}>เลือกโรค (ไม่แบ่งระดับ)</label>
+            <label className="t-label">เลือกโรค (ไม่แบ่งระดับ)</label>
             <select
               className="input"
               value={diseaseId}
@@ -1112,7 +1111,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
           </div>
 
           <div>
-            <label style={{ fontSize: 13 }}>ระบบ MOA</label>
+            <label className="t-label">ระบบ MOA</label>
             <select
               className="input"
               value={moaSystem}
@@ -1145,12 +1144,12 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
 
 
         {diseaseId && (
-          <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
+          <div style={{ marginTop: 8, color: "#6b7280" }}>
             risk_level ของโรคนี้:{" "}
             {diseaseRiskLevelIds.length ? diseaseRiskLevelIds.join(", ") : "(ไม่พบ)"}
           </div>
         )}
-        <div style={{ marginTop: 10, fontSize: 13, color: "#374151" }}>
+        <div style={{ marginTop: 10, color: "#374151" }}>
           โรคที่เลือก: <b>{selectedDiseaseName || "-"}</b> | ใช้ข้อมูลแก้ไขบน risk_level_id:{" "}
           <b>{anchorRiskLevelId || "-"}</b>
         </div>
@@ -1176,7 +1175,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
               <tr>
                 <th style={centerCell}>ลำดับ</th>
                 <th>MOA</th>
-                <th style={centerCell}>จัดการ</th>
+                <th style={centerCell} className="actionsHeader">จัดการ</th>
               </tr>
             </thead>
             <tbody>
@@ -1195,10 +1194,10 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                   <tr key={`${gid}:${idx}`}>
                     <td style={centerCell}>{idx + 1}</td>
                     <td style={{ whiteSpace: "pre-wrap" }}>{show}</td>
-                    <td style={{ ...centerCell, whiteSpace: "nowrap" }}>
-                        <div style={{ display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
+                    <td style={{ ...centerCell, whiteSpace: "nowrap" }} className="actionsCell">
+                        <div className="actionButtons">
                           <button
-                            className="btn xs"
+                            className="btn btn-edit"
                             type="button"
                             onClick={() => openEditPlanModal(row)}
                             disabled={savingPlan || loadingPlan}
@@ -1206,7 +1205,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                             แก้ไข
                           </button>
                           <button
-                            className="btn xs danger"
+                            className="btn btn-delete"
                             type="button"
                             onClick={() => removePlanRow(row)}
                             disabled={savingPlan || loadingPlan}
@@ -1222,7 +1221,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
           </table>
         )}
 
-        <div style={{ marginTop: 10, fontSize: 12, color: "#6b7280" }}>
+        <div className="t-muted" style={{ marginTop: 10 }}>
           * เมื่อเพิ่ม/แก้ไข/ลบ ระบบจะ sync เฉพาะระบบที่เลือก (เช่น FRAC) ไปทุก risk_level ของโรคนี้
         </div>
           </div>
@@ -1258,12 +1257,12 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
         {loadingAllowed ? (
           <div style={{ marginTop: 10 }}>กำลังโหลด...</div>
         ) : planSorted.length === 0 ? (
-          <div style={{ marginTop: 10, color: "#6b7280" }}>
+          <div className="t-muted" style={{ marginTop: 10 }}>
             ยังไม่มีแผนหมุนเวียนของระบบนี้ เลยไม่สามารถผูกสารได้
           </div>
         ) : (
           <div style={{ marginTop: 10 }}>
-            <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>
+            <div className="t-muted" style={{ marginBottom: 10 }}>
               * รายการนี้จะ sync ไปทุก risk_level ของโรคนี้เช่นกัน
             </div>
 
@@ -1273,7 +1272,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                   <th>MOA (ตามแผน)</th>
                   <th>สารที่อนุญาต</th>
                   <th style={centerCell}>ลำดับ</th>
-                  <th style={centerCell}>จัดการ</th>
+                  <th style={centerCell} className="actionsHeader">จัดการ</th>
                 </tr>
               </thead>
 
@@ -1296,7 +1295,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                       <td style={{ whiteSpace: "pre-wrap" }}>
                         <b>{groupLabel || `MOA#${gid}`}</b>
                         {g?.group_name ? (
-                          <div style={{ fontSize: 12, color: "#6b7280" }}>{g.group_name}</div>
+                          <div className="t-muted">{g.group_name}</div>
                         ) : null}
                       </td>
 
@@ -1323,7 +1322,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                                   <div style={{ fontWeight: 700, whiteSpace: "pre-wrap" }}>
                                     {r.chemical_name || "-"}
                                   </div>
-                                  <div style={{ fontSize: 12, color: "#6b7280" }}>
+                                  <div className="t-muted">
                                     priority: {toInt(r.priority, 1)}
                                   </div>
                                 </div>
@@ -1339,8 +1338,8 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                         {rows.length ? rows.map((r) => toInt(r.priority, 1)).join(", ") : "-"}
                       </td>
 
-                      <td style={{ whiteSpace: "nowrap", verticalAlign: "middle" }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "center", justifyContent: "center", height: "100%" }}>
+                      <td style={{ whiteSpace: "nowrap", verticalAlign: "middle" }} className="actionsCell">
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end", justifyContent: "center", height: "100%" }}>
                           <button
                             className="btn xs ghost"
                             type="button"
@@ -1353,21 +1352,18 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                           </button>
 
                           {rows.length ? (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
                               {rows.map((r) => (
-                                <div
-                                  key={`act-${r.id}`}
-                                  style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}
-                                >
+                                <div key={`act-${r.id}`} className="actionButtons">
                                   <button
-                                    className="btn xs"
+                                    className="btn btn-edit"
                                     type="button"
                                     onClick={() => openEditAllowedModal(r)}
                                   >
                                     แก้ไข
                                   </button>
                                   <button
-                                    className="btn xs danger"
+                                    className="btn btn-delete"
                                     type="button"
                                     onClick={() => onDeleteAllowed(r)}
                                   >
@@ -1423,7 +1419,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                 }}
               >
                 <div>
-                  <label style={{ fontSize: 13 }}>
+                  <label className="t-label">
                     MOA group ({String(moaSystem).toUpperCase()})
                   </label>
                   <select
@@ -1461,7 +1457,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                 </div>
 
                 <div>
-                  <label style={{ fontSize: 13 }}>ลำดับ (priority)</label>
+                  <label className="t-label">ลำดับ (priority)</label>
                   <input
                     className="input"
                     value={addPriority}
@@ -1470,17 +1466,19 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                   />
                 </div>
 
-                <div style={modalActionsRowStyle}>
-                  <button className="btn" type="submit">
+                <div className="formActions" style={{ gridColumn: "1 / -1", marginTop: 6 }}>
+                      <button className="btnBase btnSave" type="submit">
                     เพิ่ม
                   </button>
-                  <button
-                    className="btn-cancel"
+                      <button
+                    className="btnBase btnCancel"
                     type="button"
                     onClick={() => setIsAddOpen(false)}
                   >
                     ยกเลิก
                   </button>
+                  
+                  
                 </div>
               </div>
             </form>
@@ -1498,7 +1496,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}>MOA group</div>
+                  <div className="t-muted" style={{ marginBottom: 6 }}>MOA group</div>
                   <input
                     className="input"
                     value={(() => {
@@ -1517,7 +1515,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                 </div>
 
                 <div>
-                  <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}>ลำดับ (priority)</div>
+                  <div className="t-muted" style={{ marginBottom: 6 }}>ลำดับ (priority)</div>
                   <input
                     className="input"
                     type="number"
@@ -1527,22 +1525,24 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                   />
                 </div>
 
-                <div style={modalActionsRowStyle}>
-                  <button
-                    className="btn-cancel"
-                    type="button"
-                    onClick={() => setIsEditOpen(false)}
-                  >
-                    ยกเลิก
-                  </button>
-                  <button
-                    className="btn"
+                <div className="formActions" style={{ gridColumn: "1 / -1", marginTop: 6 }}>
+                      <button
+                    className="btnBase btnSave"
                     type="button"
                     onClick={submitEditPlan}
                     disabled={savingPlan || loadingPlan}
                   >
                     บันทึก
                   </button>
+                      <button
+                    className="btnBase btnCancel"
+                    type="button"
+                    onClick={() => setIsEditOpen(false)}
+                  >
+                    ยกเลิก
+                  </button>
+                  
+                  
                 </div>
               </div>
             </div>
@@ -1579,7 +1579,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                 }}
               >
                 <div>
-                  <label style={{ fontSize: 13 }}>
+                  <label className="t-label">
                     MOA group ({String(moaSystem).toUpperCase()})
                   </label>
                   <select
@@ -1608,7 +1608,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                 </div>
 
                 <div>
-                  <label style={{ fontSize: 13 }}>สารเคมี</label>
+                  <label className="t-label">สารเคมี</label>
                   <select
                     className="input"
                     value={addAllowedForm.chemicalId}
@@ -1624,7 +1624,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                 </div>
 
                 <div>
-                  <label style={{ fontSize: 13 }}>ลำดับ (priority)</label>
+                  <label className="t-label">ลำดับ (priority)</label>
                   <input
                     className="input"
                     type="number"
@@ -1634,18 +1634,20 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                   />
                 </div>
 
-                <div style={modalActionsRowStyle}>
-                  <button className="btn" type="submit" disabled={savingAllowed}>
+                <div className="formActions" style={{ gridColumn: "1 / -1", marginTop: 6 }}>
+                      <button className="btnBase btnSave" type="submit" disabled={savingAllowed}>
                     {savingAllowed ? "กำลังบันทึก..." : "บันทึก"}
                   </button>
-                  <button
-                    className="btn-cancel"
+                      <button
+                    className="btnBase btnCancel"
                     type="button"
                     onClick={() => setShowAddAllowed(false)}
                     disabled={savingAllowed}
                   >
                     ยกเลิก
                   </button>
+                  
+                  
                 </div>
               </div>
             </form>
@@ -1681,7 +1683,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                 }}
               >
                 <div>
-                  <label style={{ fontSize: 13 }}>
+                  <label className="t-label">
                     MOA group ({String(moaSystem).toUpperCase()})
                   </label>
                   <select
@@ -1710,7 +1712,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                 </div>
 
                 <div>
-                  <label style={{ fontSize: 13 }}>สารเคมี</label>
+                  <label className="t-label">สารเคมี</label>
                   <select
                     className="input"
                     value={editAllowedForm.chemicalId}
@@ -1726,7 +1728,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                 </div>
 
                 <div>
-                  <label style={{ fontSize: 13 }}>ลำดับ (priority)</label>
+                  <label className="t-label">ลำดับ (priority)</label>
                   <input
                     className="input"
                     type="number"
@@ -1736,18 +1738,20 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
                   />
                 </div>
 
-                <div style={modalActionsRowStyle}>
-                  <button className="btn" type="submit" disabled={savingAllowed}>
+                <div className="formActions" style={{ gridColumn: "1 / -1", marginTop: 6 }}>
+                      <button className="btnBase btnSave" type="submit" disabled={savingAllowed}>
                     {savingAllowed ? "กำลังบันทึก..." : "บันทึก"}
                   </button>
-                  <button
-                    className="btn-cancel"
+                      <button
+                    className="btnBase btnCancel"
                     type="button"
                     onClick={() => setShowEditAllowed(false)}
                     disabled={savingAllowed}
                   >
                     ยกเลิก
                   </button>
+                  
+                  
                 </div>
               </div>
             </form>

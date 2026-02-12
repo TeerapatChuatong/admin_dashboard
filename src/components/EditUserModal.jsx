@@ -7,8 +7,7 @@ export default function EditUserModal({ user, onClose, onSuccess }) {
     username: user?.username || "",
     email: user?.email || "",
     password: "",
-    role: user?.role || "user",
-  });
+    role: user?.role || "user"});
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -19,8 +18,7 @@ export default function EditUserModal({ user, onClose, onSuccess }) {
       username: user?.username || "",
       email: user?.email || "",
       password: "",
-      role: user?.role || "user",
-    });
+      role: user?.role || "user"});
   }, [user]);
 
   async function handleSubmit(e) {
@@ -33,8 +31,7 @@ export default function EditUserModal({ user, onClose, onSuccess }) {
         id: form.id,
         username: String(form.username || "").trim(),
         email: String(form.email || "").trim(),
-        role: String(form.role || "user"),
-      };
+        role: String(form.role || "user")};
 
       // only send password if user provided a new one
       if (String(form.password || "").trim()) {
@@ -88,11 +85,11 @@ export default function EditUserModal({ user, onClose, onSuccess }) {
             <option value="admin">ผู้ดูแลระบบ</option>
           </select>
 
-          <div className="form-actions">
-            <button className="btn" type="submit" disabled={saving}>
+          <div className="formActions">
+            <button className="btnBase btnSave" type="submit" disabled={saving}>
               {saving ? "กำลังบันทึก..." : "บันทึก"}
             </button>
-            <button className="btn-cancel" type="button" onClick={onClose}>
+            <button className="btnBase btnCancel" type="button" onClick={onClose}>
               ยกเลิก
             </button>
           </div>

@@ -57,7 +57,6 @@ const modalActionsRowStyle = {
 
 const modalActionBtnStyle = {
   padding: "7px 12px",
-  fontSize: 12,
   height: 32,
   lineHeight: "18px",
 };
@@ -635,7 +634,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
             />
 
             {chemSearching && (
-              <span style={{ fontSize: 12, color: "#6b7280" }}>กำลังค้นหา...</span>
+              <span className="t-muted">กำลังค้นหา...</span>
             )}
 
             <button className="btn ghost" onClick={() => { setChemKeyword(""); setChemSystemFilter(""); }}>
@@ -662,7 +661,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                     <th style={centerCell}>ระบบ</th>
                     <th style={centerCell}>MOA</th>
                     <th style={centerCell}>สถานะ</th>
-                    <th>จัดการ</th>
+                    <th className="actionsHeader">จัดการ</th>
                   </tr>
                 </thead>
 
@@ -697,17 +696,15 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                         <td style={centerCell}>
                           {String(row.is_active) === "1" ? "ใช้งาน" : "ปิด"}
                         </td>
-                        <td style={{ whiteSpace: "nowrap" }}>
-                          <button
-                            className="btn xs"
-                            onClick={() => openChemEditModal(row)}
-                            style={{ marginRight: 6 }}
-                          >
-                            แก้ไข
-                          </button>
-                          <button className="btn xs danger" onClick={() => onDeleteChem(row)}>
-                            ลบ
-                          </button>
+                        <td style={{ whiteSpace: "nowrap" }} className="actionsCell">
+                          <div className="actionButtons">
+                            <button className="btn btn-edit" onClick={() => openChemEditModal(row)}>
+                              แก้ไข
+                            </button>
+                            <button className="btn btn-delete" onClick={() => onDeleteChem(row)}>
+                              ลบ
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -749,7 +746,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                     }}
                   >
                     <div>
-                      <label style={{ fontSize: 13 }}>ชื่อสามัญ (ไทย/อังกฤษ) *</label>
+                      <label className="t-label">ชื่อสามัญ (ไทย/อังกฤษ) *</label>
                       <input
                         className="input"
                         name="common_name"
@@ -760,7 +757,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                     </div>
 
                     <div>
-                      <label style={{ fontSize: 13 }}>อัตราการใช้</label>
+                      <label className="t-label">อัตราการใช้</label>
                       <input
                         className="input"
                         name="usage_rate"
@@ -771,7 +768,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                     </div>
 
                     <div>
-                      <label style={{ fontSize: 13 }}>กลุ่ม MOA</label>
+                      <label className="t-label">กลุ่ม MOA</label>
                       <select
                         className="input"
                         name="moa_group_id"
@@ -794,7 +791,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                     </div>
 
                     <div>
-                      <label style={{ fontSize: 13 }}>สถานะ</label>
+                      <label className="t-label">สถานะ</label>
                       <select
                         className="input"
                         name="is_active"
@@ -806,22 +803,24 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                       </select>
                     </div>
 
-                    <div style={modalActionsRowStyle}>
+                    <div className="formActions" style={{ gridColumn: "1 / -1", marginTop: 6 }}>
                       <button
-                        className="btn"
+                        className="btnBase btnSave"
                         type="submit"
                         disabled={chemLoading}
                       >
                         บันทึก
                       </button>
                       <button
-                        className="btn-cancel"
+                        className="btnBase btnCancel"
                         type="button"
                         onClick={() => setChemOpenCreate(false)}
                         disabled={chemLoading}
                       >
                         ยกเลิก
                       </button>
+                      
+                      
                     </div>
                   </div>
                 </form>
@@ -861,7 +860,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                     }}
                   >
                     <div>
-                      <label style={{ fontSize: 13 }}>ชื่อสามัญ (ไทย/อังกฤษ) *</label>
+                      <label className="t-label">ชื่อสามัญ (ไทย/อังกฤษ) *</label>
                       <input
                         className="input"
                         name="common_name"
@@ -871,7 +870,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                     </div>
 
                     <div>
-                      <label style={{ fontSize: 13 }}>อัตราการใช้</label>
+                      <label className="t-label">อัตราการใช้</label>
                       <input
                         className="input"
                         name="usage_rate"
@@ -882,7 +881,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                     </div>
 
                     <div>
-                      <label style={{ fontSize: 13 }}>กลุ่ม MOA</label>
+                      <label className="t-label">กลุ่ม MOA</label>
                       <select
                         className="input"
                         name="moa_group_id"
@@ -916,7 +915,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                     </div>
 
                     <div>
-                      <label style={{ fontSize: 13 }}>สถานะ</label>
+                      <label className="t-label">สถานะ</label>
                       <select
                         className="input"
                         name="is_active"
@@ -928,22 +927,24 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                       </select>
                     </div>
 
-                    <div style={modalActionsRowStyle}>
+                    <div className="formActions" style={{ gridColumn: "1 / -1", marginTop: 6 }}>
                       <button
-                        className="btn"
+                        className="btnBase btnSave"
                         type="submit"
                         disabled={chemLoading}
                       >
                         บันทึก
                       </button>
                       <button
-                        className="btn-cancel"
+                        className="btnBase btnCancel"
                         type="button"
                         onClick={() => setChemOpenEdit(false)}
                         disabled={chemLoading}
                       >
                         ยกเลิก
                       </button>
+                      
+                      
                     </div>
                   </div>
                 </form>
@@ -988,7 +989,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
             />
 
             {moaSearching && (
-              <span style={{ fontSize: 12, color: "#6b7280" }}>กำลังโหลด...</span>
+              <span className="t-muted">กำลังโหลด...</span>
             )}
 
             <button className="btn ghost" onClick={() => setMoaKeyword("")}>
@@ -1012,7 +1013,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                     <th style={centerCell}>ID</th>
                     <th style={centerCell}>System</th>
                     <th style={centerCell}>Code</th>
-                    <th>จัดการ</th>
+                    <th className="actionsHeader">จัดการ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1021,17 +1022,15 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                       <td style={centerCell}>{row.moa_group_id ?? row.moaGroupId}</td>
                       <td style={centerCell}>{row.moa_system || "-"}</td>
                       <td style={centerCell}>{row.moa_code || "-"}</td>
-                      <td style={{ whiteSpace: "nowrap" }}>
-                        <button
-                          className="btn xs"
-                          onClick={() => openMoaEditModal(row)}
-                          style={{ marginRight: 6 }}
-                        >
-                          แก้ไข
-                        </button>
-                        <button className="btn xs danger" onClick={() => onDeleteMoa(row)}>
-                          ลบ
-                        </button>
+                      <td style={{ whiteSpace: "nowrap" }} className="actionsCell">
+                        <div className="actionButtons">
+                          <button className="btn btn-edit" onClick={() => openMoaEditModal(row)}>
+                            แก้ไข
+                          </button>
+                          <button className="btn btn-delete" onClick={() => onDeleteMoa(row)}>
+                            ลบ
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1072,7 +1071,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                     }}
                   >
                     <div>
-                      <label style={{ fontSize: 13 }}>ระบบ (moa_system) *</label>
+                      <label className="t-label">ระบบ (moa_system) *</label>
                       <select
                         className="input"
                         name="moa_system"
@@ -1088,7 +1087,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                     </div>
 
                     <div>
-                      <label style={{ fontSize: 13 }}>รหัส (moa_code) *</label>
+                      <label className="t-label">รหัส (moa_code) *</label>
                       <input
                         className="input"
                         name="moa_code"
@@ -1098,22 +1097,24 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                       />
                     </div>
 
-                    <div style={modalActionsRowStyle}>
+                    <div className="formActions" style={{ gridColumn: "1 / -1", marginTop: 6 }}>
                       <button
-                        className="btn"
+                        className="btnBase btnSave"
                         type="submit"
                         disabled={moaLoading}
                       >
                         บันทึก
                       </button>
                       <button
-                        className="btn-cancel"
+                        className="btnBase btnCancel"
                         type="button"
                         onClick={() => setMoaOpenCreate(false)}
                         disabled={moaLoading}
                       >
                         ยกเลิก
                       </button>
+                      
+                      
                     </div>
                   </div>
                 </form>
@@ -1153,7 +1154,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                     }}
                   >
                     <div>
-                      <label style={{ fontSize: 13 }}>ระบบ (moa_system) *</label>
+                      <label className="t-label">ระบบ (moa_system) *</label>
                       <select
                         className="input"
                         name="moa_system"
@@ -1169,7 +1170,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                     </div>
 
                     <div>
-                      <label style={{ fontSize: 13 }}>รหัส (moa_code) *</label>
+                      <label className="t-label">รหัส (moa_code) *</label>
                       <input
                         className="input"
                         name="moa_code"
@@ -1179,22 +1180,24 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                       />
                     </div>
 
-                    <div style={modalActionsRowStyle}>
+                    <div className="formActions" style={{ gridColumn: "1 / -1", marginTop: 6 }}>
                       <button
-                        className="btn"
+                        className="btnBase btnSave"
                         type="submit"
                         disabled={moaLoading}
                       >
                         บันทึก
                       </button>
                       <button
-                        className="btn-cancel"
+                        className="btnBase btnCancel"
                         type="button"
                         onClick={() => setMoaOpenEdit(false)}
                         disabled={moaLoading}
                       >
                         ยกเลิก
                       </button>
+                      
+                      
                     </div>
                   </div>
                 </form>

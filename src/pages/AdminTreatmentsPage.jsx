@@ -171,7 +171,7 @@ function TreatmentFormModal({
 
   const isValid = Object.keys(errors).length === 0;
 
-  const errTextStyle = { color: "crimson", fontSize: 12, marginTop: 4 };
+  const errTextStyle = { marginTop: 4 };
   const inputStyle = (field) =>
     showErrors && errors[field]
       ? { borderColor: "crimson", outlineColor: "crimson" }
@@ -255,7 +255,7 @@ function TreatmentFormModal({
             ))}
           </select>
           {showErrors && errors.disease_id && (
-            <div style={errTextStyle}>{errors.disease_id}</div>
+            <div className="t-error" style={errTextStyle}>{errors.disease_id}</div>
           )}
         </div>
 
@@ -275,7 +275,7 @@ function TreatmentFormModal({
             <option value="high">มาก</option>
           </select>
           {showErrors && errors.level_code && (
-            <div style={errTextStyle}>{errors.level_code}</div>
+            <div className="t-error" style={errTextStyle}>{errors.level_code}</div>
           )}
         </div>
 
@@ -291,7 +291,7 @@ function TreatmentFormModal({
             }
           />
           {showErrors && errors.min_score && (
-            <div style={errTextStyle}>{errors.min_score}</div>
+            <div className="t-error" style={errTextStyle}>{errors.min_score}</div>
           )}
         </div>
 
@@ -306,7 +306,7 @@ function TreatmentFormModal({
             placeholder="เช่น 7"
           />
           {showErrors && errors.days && (
-            <div style={errTextStyle}>{errors.days}</div>
+            <div className="t-error" style={errTextStyle}>{errors.days}</div>
           )}
         </div>
 
@@ -321,7 +321,7 @@ function TreatmentFormModal({
             placeholder="เช่น 2"
           />
           {showErrors && errors.times && (
-            <div style={errTextStyle}>{errors.times}</div>
+            <div className="t-error" style={errTextStyle}>{errors.times}</div>
           )}
         </div>
 
@@ -341,25 +341,16 @@ function TreatmentFormModal({
             }
           />
           {showErrors && errors.advice_text && (
-            <div style={errTextStyle}>{errors.advice_text}</div>
+            <div className="t-error" style={errTextStyle}>{errors.advice_text}</div>
           )}
         </div>
 
-        <div
-          style={{
-            gridColumn: "1 / -1",
-            display: "flex",
-            gap: 10,
-            justifyContent: "flex-end",
-          }}
-        >
-          <button className="btn ghost" onClick={onClose} disabled={saving}>
-            ยกเลิก
-          </button>
-
-          {/* ✅ ให้กดได้เสมอ แต่ถ้าไม่ครบจะขึ้น error หลังจากกด */}
-          <button className="btn" onClick={submit} disabled={saving}>
+        <div className="formActions" style={{ gridColumn: "1 / -1", marginTop: 6 }}>
+          <button className="btnBase btnSave" onClick={submit} disabled={saving}>
             {saving ? "กำลังบันทึก..." : "บันทึก"}
+          </button>
+          <button className="btnBase btnCancel" onClick={onClose} disabled={saving}>
+            ยกเลิก
           </button>
         </div>
       </div>
@@ -537,7 +528,7 @@ export default function AdminTreatmentsPage() {
                   <th style={th}>วัน</th>
                   <th style={th}>จำนวนครั้ง</th>
                   <th style={{ ...th, textAlign: "left" }}>คำแนะนำ</th>
-                  <th style={th}>จัดการ</th>
+                  <th style={th} className="actionsHeader">จัดการ</th>
                 </tr>
               </thead>
 
@@ -569,12 +560,12 @@ export default function AdminTreatmentsPage() {
                       >
                         {r.advice_text || "-"}
                       </td>
-                      <td style={td}>
-                        <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
-                          <button className="btn xs" onClick={() => openEditModal(r)}>
+                      <td style={td} className="actionsCell">
+                        <div className="actionButtons">
+                          <button className="btn btn-edit" onClick={() => openEditModal(r)}>
                             แก้ไข
                           </button>
-                          <button className="btn xs danger" onClick={() => onDelete(r)}>
+                          <button className="btn btn-delete" onClick={() => onDelete(r)}>
                             ลบ
                           </button>
                         </div>

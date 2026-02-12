@@ -124,7 +124,7 @@ export default function AdminUsersPage() {
           style={{ flex: 1 }}
         />
         {searching && (
-          <span style={{ fontSize: 12, color: "#6b7280" }}>กำลังค้นหา...</span>
+          <span className="t-muted">กำลังค้นหา...</span>
         )}
         <button className="btn ghost" onClick={() => setKeyword("")}>
           รีเซ็ต
@@ -147,7 +147,7 @@ export default function AdminUsersPage() {
                 <th>ชื่อผู้ใช้</th>
                 <th>อีเมล</th>
                 <th>ประเภทผู้ใช้</th>
-                <th>จัดการ</th>
+                <th className="actionsHeader">จัดการ</th>
               </tr>
             </thead>
             <tbody>
@@ -157,16 +157,15 @@ export default function AdminUsersPage() {
                   <td>{u.username}</td>
                   <td>{u.email}</td>
                   <td>{u.role}</td>
-                  <td>
-                    <button className="btn xs" onClick={() => setEditUser(u)}>
-                      แก้ไข
-                    </button>{" "}
-                    <button
-                      className="btn xs danger"
-                      onClick={() => handleDelete(u)}
-                    >
-                      ลบ
-                    </button>
+                  <td className="actionsCell">
+                    <div className="actionButtons">
+                      <button className="btn btn-edit" onClick={() => setEditUser(u)}>
+                        แก้ไข
+                      </button>
+                      <button className="btn btn-delete" onClick={() => handleDelete(u)}>
+                        ลบ
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

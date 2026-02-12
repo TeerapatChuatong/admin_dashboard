@@ -373,16 +373,16 @@ export default function AdminDiseasesPage() {
                         );
                       }}
                     />
-                    <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+                    <div className="t-muted" style={{ marginTop: 6 }}>
                       src: {currentImgSrc}
                     </div>
                   </>
                 ) : (
-                  <div style={{ color: "#9ca3af", fontSize: 13 }}>ยังไม่มีรูป</div>
+                  <div className="t-mutedLight">ยังไม่มีรูป</div>
                 )}
 
                 {imgLoadErr ? (
-                  <div style={{ marginTop: 6, color: "#ef4444", fontSize: 12 }}>
+                  <div className="t-error" style={{ marginTop: 6, color: "#ef4444" }}>
                     {imgLoadErr}
                   </div>
                 ) : null}

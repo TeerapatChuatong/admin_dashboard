@@ -12,8 +12,7 @@ const overlayStyle = {
   alignItems: "center",
   justifyContent: "center",
   zIndex: 50,
-  padding: 20,
-};
+  padding: 20};
 
 const modalStyle = {
   width: "min(980px, 96vw)",
@@ -23,8 +22,7 @@ const modalStyle = {
   overflow: "hidden",
   boxShadow: "0 10px 25px -5px rgba(16,185,129,0.15)",
   display: "flex",
-  flexDirection: "column",
-};
+  flexDirection: "column"};
 
 const headerStyle = {
   padding: 18,
@@ -32,23 +30,20 @@ const headerStyle = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  gap: 12,
-};
+  gap: 12};
 
 const bodyStyle = {
   padding: 18,
   overflow: "auto",
   WebkitOverflowScrolling: "touch",
-  flex: "1 1 auto",
-};
+  flex: "1 1 auto"};
 
 const footerStyle = {
   padding: 18,
   borderTop: "none",
   display: "flex",
   justifyContent: "flex-end",
-  gap: 12,
-};
+  gap: 12};
 
 function newOption() {
   return {
@@ -58,8 +53,7 @@ function newOption() {
     image_url: "",
     image_file: null,
     chemical_id: "",
-    _preview: "",
-  };
+    _preview: ""};
 }
 
 function revokePreview(opt) {
@@ -75,8 +69,7 @@ export default function CreateAnswerModal({
   onClose,
   question,
   diseaseId,
-  onCreated,
-}) {
+  onCreated}) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
@@ -246,9 +239,7 @@ export default function CreateAnswerModal({
           choices_text: String(o.choices_text || "").trim(),
           score: Number(o.score ?? 0),
           image_url: String(o.image_url || "").trim(),
-          image_file: o.image_file || null,
-        })),
-      });
+          image_file: o.image_file || null}))});
 
       onCreated?.();
       onClose?.();
@@ -266,24 +257,22 @@ export default function CreateAnswerModal({
       <div style={modalStyle} onMouseDown={(e) => e.stopPropagation()}>
         <div style={headerStyle}>
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <div style={{ fontWeight: 800, fontSize: 16 }}>
+            <div className="t-title">
               เพิ่มคำตอบ: {question?.question_text || ""}
             </div>
-            <div style={{ fontSize: 12, color: "#666" }}>
+            <div style={{ color: "#666" }}>
               question_type: <b>{questionType}</b>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {canUseChemicalDropdown ? (
               <label
-                style={{
+                className="t-label" style={{
                   display: "flex",
                   alignItems: "center",
                   gap: 6,
-                  fontSize: 12,
                   color: "#444",
-                  userSelect: "none",
-                }}
+                  userSelect: "none"}}
               >
                 <input
                   type="checkbox"
@@ -304,8 +293,7 @@ export default function CreateAnswerModal({
                 background: "#fff",
                 padding: "6px 10px",
                 borderRadius: 10,
-                cursor: "pointer",
-              }}
+                cursor: "pointer"}}
             >
               ปิด
             </button>
@@ -321,8 +309,7 @@ export default function CreateAnswerModal({
                 padding: 10,
                 borderRadius: 10,
                 marginBottom: 12,
-                border: "1px solid #ffc7c7",
-              }}
+                border: "1px solid #ffc7c7"}}
             >
               {err}
             </div>
@@ -336,8 +323,7 @@ export default function CreateAnswerModal({
                 padding: 10,
                 borderRadius: 10,
                 marginBottom: 12,
-                border: "1px solid #ffd9a8",
-              }}
+                border: "1px solid #ffd9a8"}}
             >
               โหลดสารเคมีไม่สำเร็จ: {chemErr}
             </div>
@@ -345,7 +331,7 @@ export default function CreateAnswerModal({
 
           {questionType === "yes_no" ? (
             <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>
+              <div style={{ color: "#666", marginBottom: 6 }}>
                 ชุดคำตอบ yes/no (เลือกเพื่อช่วยตั้งค่าอัตโนมัติ)
               </div>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -365,8 +351,7 @@ export default function CreateAnswerModal({
                     borderRadius: 10,
                     cursor: "pointer",
                     fontWeight: 700,
-                    color: "#cc6b00",
-                  }}
+                    color: "#cc6b00"}}
                 >
                   ใช่/ไม่ใช่
                 </button>
@@ -388,8 +373,7 @@ export default function CreateAnswerModal({
                     borderRadius: 10,
                     cursor: "pointer",
                     fontWeight: 700,
-                    color: "#cc6b00",
-                  }}
+                    color: "#cc6b00"}}
                 >
                   พบ/ไม่พบ
                 </button>
@@ -397,7 +381,7 @@ export default function CreateAnswerModal({
             </div>
           ) : null}
 
-          <div style={{ fontWeight: 800, marginBottom: 8 }}>รายการคำตอบ</div>
+          <div className="t-title" style={{ marginBottom: 8 }}>รายการคำตอบ</div>
 
           <div style={{ display: "grid", gap: 12 }}>
             {options.map((opt, idx) => {
@@ -411,12 +395,11 @@ export default function CreateAnswerModal({
                     border: "1px solid #eee",
                     borderRadius: 12,
                     padding: 12,
-                    background: "#fafafa",
-                  }}
+                    background: "#fafafa"}}
                 >
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     <div style={{ flex: "1 1 320px" }}>
-                      <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>
+                      <div style={{ color: "#666", marginBottom: 4 }}>
                         ข้อความคำตอบ
                       </div>
 
@@ -432,8 +415,7 @@ export default function CreateAnswerModal({
                               chemical_id: v,
                               choice_text: hit
                                 ? String(hit.trade_name || "").trim()
-                                : "",
-                            });
+                                : ""});
                           }}
                           disabled={chemLoading}
                           style={{
@@ -442,8 +424,7 @@ export default function CreateAnswerModal({
                             borderRadius: 10,
                             border: "1px solid #ddd",
                             outline: "none",
-                            background: chemLoading ? "#f6f6f6" : "#fff",
-                          }}
+                            background: chemLoading ? "#f6f6f6" : "#fff"}}
                         >
                           <option value="">
                             {chemLoading
@@ -469,14 +450,13 @@ export default function CreateAnswerModal({
                             padding: "10px 12px",
                             borderRadius: 10,
                             border: "1px solid #ddd",
-                            outline: "none",
-                          }}
+                            outline: "none"}}
                         />
                       )}
                     </div>
 
                     <div style={{ flex: "1 1 320px" }}>
-                      <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>
+                      <div style={{ color: "#666", marginBottom: 4 }}>
                         คำแนะนำ (ไม่บังคับ)
                       </div>
                       <textarea
@@ -489,13 +469,12 @@ export default function CreateAnswerModal({
                           borderRadius: 10,
                           border: "1px solid #ddd",
                           outline: "none",
-                          resize: "vertical",
-                        }}
+                          resize: "vertical"}}
                       />
                     </div>
 
                     <div style={{ width: 140 }}>
-                      <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>
+                      <div style={{ color: "#666", marginBottom: 4 }}>
                         คะแนน
                       </div>
                       <input
@@ -509,8 +488,7 @@ export default function CreateAnswerModal({
                           padding: "10px 12px",
                           borderRadius: 10,
                           border: "1px solid #ddd",
-                          outline: "none",
-                        }}
+                          outline: "none"}}
                       />
                     </div>
                   </div>
@@ -521,11 +499,10 @@ export default function CreateAnswerModal({
                       gap: 10,
                       flexWrap: "wrap",
                       marginTop: 10,
-                      alignItems: "center",
-                    }}
+                      alignItems: "center"}}
                   >
                     <div style={{ flex: "1 1 420px" }}>
-                      <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>
+                      <div style={{ color: "#666", marginBottom: 4 }}>
                         URL รูป (ไม่บังคับ)
                       </div>
                       <input
@@ -538,13 +515,12 @@ export default function CreateAnswerModal({
                           padding: "10px 12px",
                           borderRadius: 10,
                           border: "1px solid #ddd",
-                          outline: "none",
-                        }}
+                          outline: "none"}}
                       />
                     </div>
 
                     <div style={{ flex: "1 1 260px" }}>
-                      <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>
+                      <div style={{ color: "#666", marginBottom: 4 }}>
                         เลือกรูปจากเครื่อง (ไม่บังคับ)
                       </div>
                       <input
@@ -573,8 +549,7 @@ export default function CreateAnswerModal({
                           height: 120,
                           objectFit: "cover",
                           borderRadius: 12,
-                          border: "1px solid #eee",
-                        }}
+                          border: "1px solid #eee"}}
                       />
                     </div>
                   ) : null}
@@ -595,8 +570,7 @@ export default function CreateAnswerModal({
                   borderRadius: 10,
                   cursor: "pointer",
                   color: "#cc6b00",
-                  fontWeight: 700,
-                }}
+                  fontWeight: 700}}
               >
                 + เพิ่มคำตอบ
               </button>
@@ -605,31 +579,25 @@ export default function CreateAnswerModal({
         </div>
 
         <div style={footerStyle}>
-          <button
-            type="button"
-            className="btn-cancel"
-            onClick={onClose}
-            disabled={loading}
-          >
-            ยกเลิก
-          </button>
+          <div className="formActions">
+            <button
+              type="button"
+              onClick={handleSubmit}
+              className="btnBase btnSave"
+              disabled={loading}
+            >
+              {loading ? "กำลังบันทึก..." : "บันทึก"}
+            </button>
 
-          <button
-            type="button"
-            onClick={handleSubmit}
-            style={{
-              border: "1px solid #ff8a00",
-              background: "#ff8a00",
-              color: "#fff",
-              padding: "10px 16px",
-              borderRadius: 12,
-              cursor: "pointer",
-              fontWeight: 800,
-            }}
-            disabled={loading}
-          >
-            {loading ? "กำลังบันทึก..." : "บันทึก"}
-          </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="btnBase btnCancel"
+              disabled={loading}
+            >
+              ยกเลิก
+            </button>
+          </div>
         </div>
       </div>
     </div>

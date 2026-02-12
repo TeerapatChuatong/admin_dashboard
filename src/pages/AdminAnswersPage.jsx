@@ -464,10 +464,10 @@ export default function AdminAnswersPage() {
 
         {/* ✅ เพิ่มแถบสรุปคะแนน "เหมือนแนวหน้า Questions" */}
         <div
+          className="t-body"
           style={{
             width: "100%",
             marginTop: 6,
-            fontSize: 14,
             color: "#222",
             display: "flex",
             flexWrap: "wrap",
@@ -505,7 +505,7 @@ export default function AdminAnswersPage() {
               <th>คำแนะนำ</th>
               <th style={centerCell}>รูป</th>
               <th style={centerCell}>คะแนน</th>
-              <th style={centerCell}>จัดการ</th>
+              <th style={centerCell} className="actionsHeader">จัดการ</th>
             </tr>
           </thead>
 
@@ -559,12 +559,12 @@ export default function AdminAnswersPage() {
 
                     <td style={centerCell}>{score}</td>
 
-                    <td style={centerCell}>
-                      <div style={btnCell}>
-                        <button className="btn xs" onClick={openEditModal}>
+                    <td style={centerCell} className="actionsCell">
+                      <div className="actionButtons">
+                        <button className="btn btn-edit" onClick={openEditModal}>
                           แก้ไข
                         </button>
-                        <button className="btn xs danger" onClick={() => handleDelete(a)}>
+                        <button className="btn btn-delete" onClick={() => handleDelete(a)}>
                           ลบ
                         </button>
                       </div>

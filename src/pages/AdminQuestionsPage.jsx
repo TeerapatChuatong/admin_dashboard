@@ -449,7 +449,7 @@ export default function AdminQuestionsPage() {
           style={{ flex: 1, minWidth: 180 }}
         />
         {searching && (
-          <span style={{ fontSize: 12, color: "#6b7280" }}>กำลังค้นหา...</span>
+          <span className="t-muted">กำลังค้นหา...</span>
         )}
         <button className="btn ghost" onClick={() => setKeyword("")}>
           รีเซ็ต
@@ -482,7 +482,7 @@ export default function AdminQuestionsPage() {
 
                 <th style={centerCell}>ลำดับ</th>
                 <th style={centerCell}>สถานะ</th>
-                <th>จัดการ</th>
+                <th className="actionsHeader">จัดการ</th>
               </tr>
             </thead>
 
@@ -553,19 +553,15 @@ export default function AdminQuestionsPage() {
                       <td style={centerCell}>{order}</td>
                       <td style={centerCell}>{active === 1 ? "เปิด" : "ปิด"}</td>
 
-                      <td>
-                        <button
-                          className="btn xs"
-                          onClick={() => setEditQuestion(q)}
-                        >
-                          แก้ไข
-                        </button>{" "}
-                        <button
-                          className="btn xs danger"
-                          onClick={() => handleDelete(q)}
-                        >
-                          ลบ
-                        </button>
+                      <td className="actionsCell">
+                        <div className="actionButtons">
+                          <button className="btn btn-edit" onClick={() => setEditQuestion(q)}>
+                            แก้ไข
+                          </button>
+                          <button className="btn btn-delete" onClick={() => handleDelete(q)}>
+                            ลบ
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
