@@ -555,10 +555,10 @@ table th{ font-size: var(--fs-table); font-weight: var(--fw-bold); }
 .formActions {
   display: flex;
   align-items: center;
-  gap: 12px;
-  justify-content: space-between; /* left (save) / right (cancel) */
+  justify-content: flex-end;   /* สำคัญ: ชิดขวาสุด */
+  gap: 10px;                   /* ปุ่มชิดกัน */
   width: 100%;
-  flex-wrap: wrap; /* allow wrap only when space is truly not enough */
+  flex-wrap: nowrap;
 }
 
 .btnBase {
@@ -568,14 +568,13 @@ table th{ font-size: var(--fs-table); font-weight: var(--fw-bold); }
   font-size: 16px;
   font-weight: 600;
   border: 1px solid transparent;
-  transition: 150ms ease;
+  transition: 150ms;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  cursor: pointer;
   white-space: nowrap;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
 }
 
 .btnBase:hover {
@@ -622,6 +621,5 @@ table th{ font-size: var(--fs-table); font-weight: var(--fw-bold); }
 
 /* Responsive */
 @media (max-width: 520px) {
-  .formActions { gap: 10px; }
-  .btnBase { flex: 1; }
+  .formActions { gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 }

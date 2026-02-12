@@ -1400,7 +1400,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
               }}
             >
               <h2 style={{ margin: 0 }}>เพิ่ม MOA group ในแผน</h2>
-              <button className="btn ghost" type="button" onClick={() => setIsAddOpen(false)}>
+              <button className="btnBase btnCancel" type="button" onClick={() => setIsAddOpen(false)}>
                 ปิด
               </button>
             </div>
@@ -1565,7 +1565,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
               }}
             >
               <h2 style={{ margin: 0 }}>เพิ่มสารที่อนุญาต</h2>
-              <button className="btn ghost" type="button" onClick={() => setShowAddAllowed(false)}>
+              <button className="btnBase btnCancel" type="button" onClick={() => setShowAddAllowed(false)}>
                 ปิด
               </button>
             </div>
@@ -1669,7 +1669,7 @@ export default function AdminMoaPlanAndAllowedChemicalsPage() {
               }}
             >
               <h2 style={{ margin: 0 }}>แก้ไขสารที่อนุญาต</h2>
-              <button className="btn ghost" type="button" onClick={() => setShowEditAllowed(false)}>
+              <button className="btnBase btnCancel" type="button" onClick={() => setShowEditAllowed(false)}>
                 ปิด
               </button>
             </div>

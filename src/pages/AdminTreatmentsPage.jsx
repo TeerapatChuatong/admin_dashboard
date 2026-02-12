@@ -67,7 +67,7 @@ function Modal({ open, title, children, onClose }) {
           }}
         >
           <h2 style={{ margin: 0 }}>{title}</h2>
-          <button className="btn ghost" onClick={onClose}>
+                <button className="btnBase btnCancel" onClick={onClose}>
             ปิด
           </button>
         </div>

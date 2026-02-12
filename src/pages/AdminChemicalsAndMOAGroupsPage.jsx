@@ -732,7 +732,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                   }}
                 >
                   <h2 style={{ margin: 0 }}>เพิ่มสารเคมี</h2>
-                  <button className="btn ghost" onClick={() => setChemOpenCreate(false)}>
+                  <button className="btnBase btnCancel" onClick={() => setChemOpenCreate(false)}>
                     ปิด
                   </button>
                 </div>
@@ -846,7 +846,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                   }}
                 >
                   <h2 style={{ margin: 0 }}>แก้ไขสารเคมี (ID: {chemEditForm.chemical_id})</h2>
-                  <button className="btn ghost" onClick={() => setChemOpenEdit(false)}>
+                  <button className="btnBase btnCancel" onClick={() => setChemOpenEdit(false)}>
                     ปิด
                   </button>
                 </div>
@@ -1057,7 +1057,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                   }}
                 >
                   <h2 style={{ margin: 0 }}>เพิ่มกลุ่ม MOA</h2>
-                  <button className="btn ghost" onClick={() => setMoaOpenCreate(false)}>
+                  <button className="btnBase btnCancel" onClick={() => setMoaOpenCreate(false)}>
                     ปิด
                   </button>
                 </div>
@@ -1140,7 +1140,7 @@ export default function AdminChemicalsAndMOAGroupsPage() {
                   }}
                 >
                   <h2 style={{ margin: 0 }}>แก้ไขกลุ่ม MOA (ID: {moaEditForm.moa_group_id})</h2>
-                  <button className="btn ghost" onClick={() => setMoaOpenEdit(false)}>
+                  <button className="btnBase btnCancel" onClick={() => setMoaOpenEdit(false)}>
                     ปิด
                   </button>
                 </div>

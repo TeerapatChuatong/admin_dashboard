@@ -308,12 +308,7 @@ export default function EditAnswerModal({
             <button
               type="button"
               onClick={onClose}
-              style={{
-                border: "1px solid #ddd",
-                background: "#fff",
-                padding: "6px 10px",
-                borderRadius: 10,
-                cursor: "pointer"}}
+              className="btnBase btnCancel"
             >
               ปิด
             </button>
