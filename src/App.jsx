@@ -8,19 +8,12 @@ import AdminUsersPage from "./pages/AdminUsersPage";
 import AdminQuestionsPage from "./pages/AdminQuestionsPage";
 import AdminAnswersPage from "./pages/AdminAnswersPage";
 import AdminTreatmentsPage from "./pages/AdminTreatmentsPage";
-
 import AdminDiseasesPage from "./pages/AdminDiseasesPage";
-import AdminChemicalsPage from "./pages/AdminChemicalsPage";
+
+import AdminChemicalsAndMOAGroupsPage from "./pages/AdminChemicalsAndMOAGroupsPage";
+import AdminMoaPlanAndAllowedChemicalsPage from "./pages/AdminMoaPlanAndAllowedChemicalsPage";
 
 import RequireAdmin from "./components/RequireAdmin";
-
-import AdminMoaRotationPlanPage from "./pages/AdminMoaRotationPlanPage";
-import AdminAllowedChemicalsPerGroupPage from "./pages/AdminAllowedChemicalsPerGroupPage";
-import AdminRiskLevelRulesPage from "./pages/AdminRiskLevelRulesPage";
-import AdminRotationSummaryPage from "./pages/AdminRotationSummaryPage";
-
-// ✅ เพิ่มหน้า MOA Groups
-import AdminMOAGroupsPage from "./pages/AdminMOAGroupsPage";
 
 export default function App() {
   return (
@@ -81,57 +74,68 @@ export default function App() {
         }
       />
 
+      {/* ❌ ลบหน้า: Vector Mapping (redirect กลับหน้าแอดมิน) */}
+      <Route
+        path="/admin/vector-mappings"
+        element={
+          <RequireAdmin>
+            <Navigate to="/admin" replace />
+          </RequireAdmin>
+        }
+      />
+
+      {/* ✅ ยุบ: สารเคมี + กลุ่ม MOA ให้อยู่หน้าเดียว */}
       <Route
         path="/admin/chemicals"
         element={
           <RequireAdmin>
-            <AdminChemicalsPage />
+            <AdminChemicalsAndMOAGroupsPage />
           </RequireAdmin>
         }
       />
 
+      {/* ✅ ยุบ: แผนหมุนเวียน MOA + สารที่อนุญาต ให้อยู่หน้าเดียว */}
       <Route
         path="/admin/moa-plan"
         element={
           <RequireAdmin>
-            <AdminMoaRotationPlanPage />
+            <AdminMoaPlanAndAllowedChemicalsPage />
           </RequireAdmin>
         }
       />
 
-      <Route
-        path="/admin/allowed-chemicals"
-        element={
-          <RequireAdmin>
-            <AdminAllowedChemicalsPerGroupPage />
-          </RequireAdmin>
-        }
-      />
-
-      <Route
-        path="/admin/risk-level-rules"
-        element={
-          <RequireAdmin>
-            <AdminRiskLevelRulesPage />
-          </RequireAdmin>
-        }
-      />
-
-      <Route
-        path="/admin/rotation-summary"
-        element={
-          <RequireAdmin>
-            <AdminRotationSummaryPage />
-          </RequireAdmin>
-        }
-      />
-
-      {/* ✅ เพิ่ม route: MOA Groups */}
+      {/* ✅ ลิงก์เก่า: redirect ไปหน้าที่ถูกรวมแล้ว */}
       <Route
         path="/admin/moa-groups"
         element={
           <RequireAdmin>
-            <AdminMOAGroupsPage />
+            <Navigate to="/admin/chemicals" replace />
+          </RequireAdmin>
+        }
+      />
+      <Route
+        path="/admin/allowed-chemicals"
+        element={
+          <RequireAdmin>
+            <Navigate to="/admin/moa-plan" replace />
+          </RequireAdmin>
+        }
+      />
+
+      {/* ✅ ลบหน้า: กฎระดับความเสี่ยง / สรุปการสลับ MOA (redirect กลับหน้าแอดมิน) */}
+      <Route
+        path="/admin/risk-level-rules"
+        element={
+          <RequireAdmin>
+            <Navigate to="/admin" replace />
+          </RequireAdmin>
+        }
+      />
+      <Route
+        path="/admin/rotation-summary"
+        element={
+          <RequireAdmin>
+            <Navigate to="/admin" replace />
           </RequireAdmin>
         }
       />

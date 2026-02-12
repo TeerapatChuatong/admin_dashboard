@@ -7,28 +7,28 @@ import { readChemicalsApi } from "../api/chemicalsApi";
 const overlayStyle = {
   position: "fixed",
   inset: 0,
-  background: "rgba(0,0,0,0.35)",
+  background: "rgba(16,185,129,0.06)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   zIndex: 50,
-  padding: 16,
+  padding: 20,
 };
 
 const modalStyle = {
   width: "min(980px, 96vw)",
   maxHeight: "92vh",
-  background: "#fff",
-  borderRadius: 18,
+  background: "var(--surface)",
+  borderRadius: 20,
   overflow: "hidden",
-  boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+  boxShadow: "0 10px 25px -5px rgba(16,185,129,0.15)",
   display: "flex",
   flexDirection: "column",
 };
 
 const headerStyle = {
-  padding: 16,
-  borderBottom: "1px solid #eee",
+  padding: 18,
+  borderBottom: "none",
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
@@ -36,18 +36,18 @@ const headerStyle = {
 };
 
 const bodyStyle = {
-  padding: 16,
+  padding: 18,
   overflow: "auto",
   WebkitOverflowScrolling: "touch",
   flex: "1 1 auto",
 };
 
 const footerStyle = {
-  padding: 16,
-  borderTop: "1px solid #eee",
+  padding: 18,
+  borderTop: "none",
   display: "flex",
   justifyContent: "flex-end",
-  gap: 10,
+  gap: 12,
 };
 
 function newOption() {
@@ -556,15 +556,8 @@ export default function CreateAnswerModal({
 
                     <button
                       type="button"
+                      className="btn danger"
                       onClick={() => removeOption(idx)}
-                      style={{
-                        border: "1px solid #ffb3b3",
-                        background: "#fff",
-                        color: "#b00020",
-                        padding: "10px 12px",
-                        borderRadius: 10,
-                        cursor: "pointer",
-                      }}
                     >
                       ลบ
                     </button>
@@ -614,14 +607,8 @@ export default function CreateAnswerModal({
         <div style={footerStyle}>
           <button
             type="button"
+            className="btn-cancel"
             onClick={onClose}
-            style={{
-              border: "1px solid #ddd",
-              background: "#fff",
-              padding: "10px 12px",
-              borderRadius: 12,
-              cursor: "pointer",
-            }}
             disabled={loading}
           >
             ยกเลิก

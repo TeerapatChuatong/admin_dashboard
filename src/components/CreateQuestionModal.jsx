@@ -340,7 +340,7 @@ export default function CreateQuestionModal({
             <button className="btn" type="submit" disabled={saving}>
               {saving ? "กำลังบันทึก..." : "บันทึก"}
             </button>
-            <button className="btn ghost" type="button" onClick={onClose}>
+            <button className="btn-cancel" type="button" onClick={onClose}>
               ยกเลิก
             </button>
           </div>

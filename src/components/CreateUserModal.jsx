@@ -77,7 +77,7 @@ export default function CreateUserModal({ onClose, onSuccess }) {
             <button className="btn" type="submit" disabled={saving}>
               {saving ? "กำลังบันทึก..." : "เพิ่มผู้ใช้"}
             </button>
-            <button className="btn ghost" type="button" onClick={onClose}>
+            <button className="btn-cancel" type="button" onClick={onClose}>
               ยกเลิก
             </button>
           </div>
